@@ -24,5 +24,3 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
           resources: {{- toYaml .Values.resources | nindent 12 }}
-      imagePullSecrets:
-        - name: image-pull-secret
