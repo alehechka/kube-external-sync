@@ -1,0 +1,113 @@
+name: Release Tag
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  goreleaser:
+    name: Compile and upload binaries
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.19'
+
+      - uses: goreleaser/goreleaser-action@v3
+        with:
+          args: release --rm-dist --skip-docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  push_docker_image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: docker/setup-buildx-action@v2
+
+      - uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker Image Tag
+        id: image
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "::set-output name=tag::${{ github.ref_name }}"
+          else
+            echo "::set-output name=tag::latest"
+          fi
+
+      - uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ steps.image.outputs.tag }}
+          platforms: linux/amd64
+          build-args: |
+            RELEASE_VERSION=${{ steps.image.outputs.tag }}
+
+  upload_helm_charts:
+    name: Upload Helm Charts
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.9.4'
+
+      - name: Get Chart version
+        id: chart
+        run: |
+          VERSION=${{ github.ref_name }}
+
+          echo "::set-output name=version::${VERSION##*v}"
+
+      - name: Update versions
+        run: |
+          yq --inplace '.image.tag = "${{ github.ref_name }}"' values.yaml
+          yq --inplace '.version = "${{ steps.chart.outputs.version }}" | .appVersion = "${{ github.ref_name }}"' Chart.yaml
+        working_directory: deploy/helm/kube-external-sync
+
+      - name: Build Template
+        run: helm template --namespace kube-external-sync kube-external-sync deploy/helm/kube-external-sync > kube-external-sync.yaml
+
+      - name: Build Package
+        run: |
+          # package can't include namespace definition
+          rm deploy/helm/kube-external-sync/templates/namespace.yaml
+
+          helm package deploy/helm/kube-external-sync
+
+      - name: Add to release
+        run: gh release upload ${{ github.ref_name }} kube-external-sync.yaml kube-external-sync-${{ steps.chart.outputs.version }}.tgz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
