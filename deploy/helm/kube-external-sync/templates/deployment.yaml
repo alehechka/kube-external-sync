@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kube-external-sync.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "kube-external-sync.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "kube-external-sync.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "kube-external-sync.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kube-external-sync.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      imagePullSecrets:
+        - name: image-pull-secret
