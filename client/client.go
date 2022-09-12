@@ -22,8 +22,6 @@ type Client struct {
 	DefaultClientset          kubernetes.Interface
 	KubeExternalSyncClientset *kesclientset.KubeExternalSyncClientset
 
-	SecretWatcher           watch.Interface
-	NamespaceWatcher        watch.Interface
 	ExternalSyncRuleWatcher watch.Interface
 	SignalChannel           chan os.Signal
 }

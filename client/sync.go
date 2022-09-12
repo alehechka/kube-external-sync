@@ -14,8 +14,6 @@ func SyncExternals(config *SyncConfig) (err error) {
 		return err
 	}
 
-	defer client.SecretWatcher.Stop()
-	defer client.NamespaceWatcher.Stop()
 	defer client.ExternalSyncRuleWatcher.Stop()
 
 	for {
