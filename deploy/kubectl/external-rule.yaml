@@ -11,4 +11,4 @@ spec:
       includeAnnotation:
         - key: 'alehechka/feature-branch'
           value: 'feature/[.]*'
-          regex: true
+          isRegex: true

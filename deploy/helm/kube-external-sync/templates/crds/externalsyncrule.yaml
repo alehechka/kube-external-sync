@@ -83,7 +83,7 @@ spec:
                                 type: string
                               value:
                                 type: string
-                              regex:
+                              isRegex:
                                 type: boolean
   scope: Cluster
   names:
