@@ -1,0 +1,14 @@
+apiVersion: kube-external-sync.io/v1
+kind: ExternalSyncRule
+metadata:
+  name: external-rule
+spec:
+  service:
+    name: nginx
+    namespace: default
+  rules:
+    namespaces:
+      includeAnnotation:
+        - key: 'alehechka/feature-branch'
+          value: 'feature/[.]*'
+          regex: true
