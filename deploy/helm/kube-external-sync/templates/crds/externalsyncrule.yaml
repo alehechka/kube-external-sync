@@ -26,9 +26,15 @@ spec:
                       default: Service
                       enum: 
                         - Service
-                        - Traefik Service
+                        # - Traefik Service
                     namespace:
                       type: string
+                    externalNameSuffix:
+                      type: string
+                      default: 'svc.cluster.local'
+                      enum:
+                        - 'svc.cluster.local'
+                        - 'traefik.mesh'
                   required:
                     - name
                     - namespace
@@ -42,9 +48,9 @@ spec:
                       default: Ingress
                       enum: 
                         - Ingress
-                        - Ingress Route
-                        - Ingress Route TCP
-                        - Ingress Route UDP
+                        # - Ingress Route
+                        # - Ingress Route TCP
+                        # - Ingress Route UDP
                     namespace:
                       type: string
                     topLevelDomain:

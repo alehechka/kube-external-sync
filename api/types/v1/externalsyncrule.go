@@ -38,9 +38,10 @@ type ExternalSyncRuleSpec struct {
 
 // Service defines the attributes of the Service to sync
 type Service struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Kind      string `json:"kind"`
+	Name               string `json:"name"`
+	Namespace          string `json:"namespace"`
+	Kind               string `json:"kind"`
+	ExternalNameSuffix string `json:"externalNameSuffix"`
 }
 
 // +kubebuilder:object:generate=true
