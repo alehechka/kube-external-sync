@@ -29,12 +29,9 @@ func (client *Client) ExternalSyncRuleEventHandler(event watch.Event) error {
 func (client *Client) AddedExternalSyncRuleHandler(rule *typesv1.ExternalSyncRule) (err error) {
 	ruleLogger(rule).Infof("added")
 
-	var service *v1.Service
+	var service *v1.Service = nil
 	if rule.HasService() && rule.Spec.Service.IsService() {
-		service, err = client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name)
-		if err != nil {
-			return err
-		}
+		service, _ = client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name)
 	}
 
 	for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
