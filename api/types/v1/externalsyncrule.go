@@ -29,9 +29,10 @@ type ExternalSyncRuleList struct {
 
 // ExternalSyncRuleSpec is the spec attribute of the ExternalSyncRule CRD
 type ExternalSyncRuleSpec struct {
-	Service *Service `json:"service,omitempty"`
-	Ingress *Ingress `json:"ingress,omitempty"`
-	Rules   Rules    `json:"rules"`
+	Namespace string   `json:"namespace"`
+	Service   *Service `json:"service,omitempty"`
+	Ingress   *Ingress `json:"ingress,omitempty"`
+	Rules     Rules    `json:"rules"`
 }
 
 // +kubebuilder:object:generate=true
@@ -39,9 +40,16 @@ type ExternalSyncRuleSpec struct {
 // Service defines the attributes of the Service to sync
 type Service struct {
 	Name               string `json:"name"`
-	Namespace          string `json:"namespace"`
 	Kind               string `json:"kind"`
 	ExternalNameSuffix string `json:"externalNameSuffix"`
+}
+
+func (service *Service) IsService() bool {
+	return service.Kind == "Service"
+}
+
+func (service *Service) IsTraefikService() bool {
+	return service.Kind == "Traefik Service"
 }
 
 // +kubebuilder:object:generate=true
@@ -49,7 +57,6 @@ type Service struct {
 // Ingress defines the attributes of the Ingress to sync
 type Ingress struct {
 	Name           string `json:"name"`
-	Namespace      string `json:"namespace"`
 	Kind           string `json:"kind"`
 	TopLevelDomain string `json:"topLevelDomain"`
 }
@@ -74,12 +81,10 @@ type NamespaceRules struct {
 
 func (rule *ExternalSyncRule) HasService() bool {
 	return rule.Spec.Service != nil &&
-		len(rule.Spec.Service.Name) > 0 &&
-		len(rule.Spec.Service.Namespace) > 0
+		len(rule.Spec.Service.Name) > 0
 }
 
 func (rule *ExternalSyncRule) HasIngress() bool {
 	return rule.Spec.Ingress != nil &&
-		len(rule.Spec.Ingress.Name) > 0 &&
-		len(rule.Spec.Ingress.Namespace) > 0
+		len(rule.Spec.Ingress.Name) > 0
 }
