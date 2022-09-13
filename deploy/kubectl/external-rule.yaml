@@ -3,9 +3,9 @@ kind: ExternalSyncRule
 metadata:
   name: external-rule
 spec:
+  namespace: default
   service:
     name: nginx
-    namespace: default
   rules:
     namespaces:
       includeAnnotation:
