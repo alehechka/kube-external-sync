@@ -1,0 +1,6 @@
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: annotated
+  annotations:
+    alehechka/feature-branch: feature/annotated

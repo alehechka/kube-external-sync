@@ -1,9 +1,15 @@
 package client
 
 import (
+	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
+	serviceLogger(&v1.Service{ObjectMeta: metav1.ObjectMeta{Name: service.Name, Namespace: namespace.Name}}).Infof("creating")
+	return nil
+}
 
 func (client *Client) GetService(namespace, name string) (service *v1.Service, err error) {
 	service, err = client.DefaultClientset.CoreV1().Services(namespace).Get(client.Context, name, metav1.GetOptions{})
