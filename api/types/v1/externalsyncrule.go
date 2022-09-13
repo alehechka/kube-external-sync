@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alehechka/kube-external-sync/api/types"
 	v1 "k8s.io/api/core/v1"
@@ -141,4 +142,12 @@ func (list *ExternalSyncRuleList) ShouldSyncNamespace(namespace *v1.Namespace) b
 	}
 
 	return false
+}
+
+func (rule *ExternalSyncRule) ServiceExternalName() string {
+	if rule == nil || !rule.HasService() {
+		return ""
+	}
+
+	return fmt.Sprintf("%s.%s.%s", rule.Spec.Service.Name, rule.Spec.Namespace, rule.Spec.Service.ExternalNameSuffix)
 }
