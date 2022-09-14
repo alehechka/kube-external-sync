@@ -7,13 +7,30 @@ import (
 )
 
 func ruleLogger(rule *typesv1.ExternalSyncRule) *log.Entry {
-	return log.WithFields(log.Fields{"name": rule.Name, "kind": "ExternalSyncRule"})
+	return ruleNameLogger(rule.Name)
 }
 
-func serviceLogger(service *v1.Service) *log.Entry {
-	return log.WithFields(log.Fields{"name": service.Name, "kind": "Service", "namespace": service.Namespace})
+func ruleNameLogger(name string) *log.Entry {
+	return log.WithFields(log.Fields{"name": name, "kind": "ExternalSyncRule"})
+}
+
+func serviceLogger(service *v1.Service, namespaces ...*v1.Namespace) *log.Entry {
+	namespace := service.Namespace
+	if len(namespaces) > 0 {
+		namespace = namespaces[0].Name
+	}
+
+	return serviceNameLogger(namespace, service.Name)
+}
+
+func serviceNameLogger(namespace, name string) *log.Entry {
+	return log.WithFields(log.Fields{"name": name, "kind": "Service", "namespace": namespace})
 }
 
 func namespaceLogger(namespace *v1.Namespace) *log.Entry {
-	return log.WithFields(log.Fields{"name": namespace.Name, "kind": "Namespace"})
+	return namespaceNameLogger(namespace.Name)
+}
+
+func namespaceNameLogger(name string) *log.Entry {
+	return log.WithFields(log.Fields{"name": name, "kind": "Namespace"})
 }
