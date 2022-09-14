@@ -20,7 +20,7 @@ func (client *Client) ExternalSyncRuleEventHandler(event watch.Event) error {
 	case watch.Modified:
 		return client.ModifiedExternalSyncRuleHandler(rule)
 	case watch.Deleted:
-		ruleLogger(rule).Infof("deleted: %#v", rule)
+		return client.DeletedExternalSyncRuleHandler(rule)
 	}
 
 	return nil
@@ -63,6 +63,23 @@ func (client *Client) ModifiedExternalSyncRuleHandler(rule *typesv1.ExternalSync
 	for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
 		if service != nil {
 			client.CreateUpdateExternalNameService(rule, &namespace, service)
+		}
+	}
+
+	return nil
+}
+
+func (client *Client) DeletedExternalSyncRuleHandler(rule *typesv1.ExternalSyncRule) error {
+	ruleLogger(rule).Infof("deleted")
+
+	var service *v1.Service = nil
+	if rule.HasService() && rule.Spec.Service.IsService() {
+		service, _ = client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name)
+	}
+
+	for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+		if service != nil {
+			client.SyncDeletedExternalNameService(rule, &namespace, service)
 		}
 	}
 

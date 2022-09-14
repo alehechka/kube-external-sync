@@ -10,7 +10,7 @@ import (
 )
 
 func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
-	logger := serviceLogger(PrepareExternalNameService(rule, namespace, service))
+	logger := serviceLogger(service, namespace)
 
 	if namespaceService, err := client.GetService(namespace.Name, service.Name); err == nil {
 		logger.Debugf("already exists")
@@ -31,10 +31,24 @@ func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSync
 	return client.CreateExternalNameService(rule, namespace, service)
 }
 
+func (client *Client) SyncDeletedExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
+	logger := serviceLogger(service, namespace)
+
+	if namespaceService, err := client.GetService(namespace.Name, service.Name); err == nil {
+		if IsServiceManagedBy(namespaceService) {
+			return client.DeleteService(rule, namespace, service)
+		}
+
+		logger.Debugf("existing service is not managed and will not be deleted")
+	}
+
+	return nil
+}
+
 func (client *Client) GetService(namespace, name string) (service *v1.Service, err error) {
 	service, err = client.DefaultClientset.CoreV1().Services(namespace).Get(client.Context, name, metav1.GetOptions{})
 	if err != nil {
-		serviceLogger(&v1.Service{ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name}}).
+		serviceNameLogger(namespace, name).
 			Errorf("failed to get service: %s", err.Error())
 	}
 	return
@@ -43,7 +57,7 @@ func (client *Client) GetService(namespace, name string) (service *v1.Service, e
 func (client *Client) ListServices(namespace string) (list *v1.ServiceList, err error) {
 	list, err = client.DefaultClientset.CoreV1().Services(namespace).List(client.Context, metav1.ListOptions{})
 	if err != nil {
-		namespaceLogger(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}).
+		namespaceNameLogger(namespace).
 			Errorf("failed to list services: %s", err.Error())
 	}
 	return
@@ -77,6 +91,19 @@ func (client *Client) UpdateExternalNameService(rule *typesv1.ExternalSyncRule, 
 	}
 
 	return err
+}
+
+func (client *Client) DeleteService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) (err error) {
+	logger := serviceLogger(service, namespace)
+
+	logger.Infof("deleting service")
+
+	err = client.DefaultClientset.CoreV1().Services(namespace.Name).Delete(client.Context, service.Name, metav1.DeleteOptions{})
+	if err != nil {
+		logger.Errorf("failed to delete service - %s", err.Error())
+	}
+
+	return
 }
 
 func ExternalNameServicesAreEqual(a, b *v1.Service) bool {
