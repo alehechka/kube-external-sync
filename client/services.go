@@ -80,9 +80,7 @@ func (client *Client) UpdateExternalNameService(rule *typesv1.ExternalSyncRule, 
 }
 
 func ExternalNameServicesAreEqual(a, b *v1.Service) bool {
-	return (a.Spec.Type == b.Spec.Type &&
-		a.Spec.ExternalName == b.Spec.ExternalName &&
-		reflect.DeepEqual(a.Spec.Ports, b.Spec.Ports) &&
+	return (reflect.DeepEqual(a.Spec.Ports, b.Spec.Ports) &&
 		AnnotationsAreEqual(a.Annotations, b.Annotations))
 }
 
