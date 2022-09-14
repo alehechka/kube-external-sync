@@ -1,6 +1,8 @@
 package client
 
 import (
+	"reflect"
+
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	"github.com/alehechka/kube-external-sync/constants"
 	v1 "k8s.io/api/core/v1"
@@ -8,9 +10,25 @@ import (
 )
 
 func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
-	externalService := PrepareExternalNameService(rule, namespace, service)
-	serviceLogger(externalService).Infof("creating: %#v", externalService)
-	return nil
+	logger := serviceLogger(PrepareExternalNameService(rule, namespace, service))
+
+	if namespaceService, err := client.GetService(namespace.Name, service.Name); err == nil {
+		logger.Debugf("already exists")
+
+		if !IsServiceManagedBy(namespaceService) {
+			logger.Debugf("existing service is not managed and will not be updated")
+			return nil
+		}
+
+		if ExternalNameServicesAreEqual(service, namespaceService) {
+			logger.Debugf("existing service contains same data")
+			return nil
+		}
+
+		return client.UpdateExternalNameService(rule, namespace, service)
+	}
+
+	return client.CreateExternalNameService(rule, namespace, service)
 }
 
 func (client *Client) GetService(namespace, name string) (service *v1.Service, err error) {
@@ -29,6 +47,50 @@ func (client *Client) ListServices(namespace string) (list *v1.ServiceList, err 
 			Errorf("failed to list services: %s", err.Error())
 	}
 	return
+}
+
+func (client *Client) CreateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
+	newService := PrepareExternalNameService(rule, namespace, service)
+
+	logger := serviceLogger(newService)
+	logger.Infof("creating ExternalName service")
+
+	_, err := client.DefaultClientset.CoreV1().Services(namespace.Name).Create(client.Context, newService, metav1.CreateOptions{})
+
+	if err != nil {
+		logger.Errorf("failed to create service - %s", err.Error())
+	}
+
+	return err
+}
+
+func (client *Client) UpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
+	updateService := PrepareExternalNameService(rule, namespace, service)
+
+	logger := serviceLogger(updateService)
+	logger.Infof("updating ExternalName service")
+
+	_, err := client.DefaultClientset.CoreV1().Services(namespace.Name).Update(client.Context, updateService, metav1.UpdateOptions{})
+
+	if err != nil {
+		logger.Errorf("failed to update service - %s", err.Error())
+	}
+
+	return err
+}
+
+func ExternalNameServicesAreEqual(a, b *v1.Service) bool {
+	return (a.Spec.Type == b.Spec.Type &&
+		a.Spec.ExternalName == b.Spec.ExternalName &&
+		reflect.DeepEqual(a.Spec.Ports, b.Spec.Ports) &&
+		AnnotationsAreEqual(a.Annotations, b.Annotations))
+}
+
+func AnnotationsAreEqual(a, b map[string]string) bool {
+	aCopy := CopyAnnotations(a)
+	bCopy := CopyAnnotations(b)
+
+	return reflect.DeepEqual(aCopy, bCopy)
 }
 
 func PrepareExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) *v1.Service {
@@ -64,7 +126,7 @@ func CopyAnnotations(m map[string]string) map[string]string {
 	return copy
 }
 
-func IsManagedBy(service *v1.Service) bool {
+func IsServiceManagedBy(service *v1.Service) bool {
 	managedBy, ok := service.Annotations[constants.ManagedByAnnotationKey]
 
 	return ok && managedBy == constants.ManagedByAnnotationValue
