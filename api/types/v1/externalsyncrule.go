@@ -94,6 +94,12 @@ func (rule *ExternalSyncRule) HasIngress() bool {
 		len(rule.Spec.Ingress.Name) > 0
 }
 
+func (rule *ExternalSyncRule) ShouldSyncService(service *v1.Service) bool {
+	return rule.HasService() &&
+		rule.Spec.Namespace == service.Namespace &&
+		rule.Spec.Service.Name == service.Name
+}
+
 // ShouldSyncNamespace determines whether or not the given Namespace should be synced
 func (rule *ExternalSyncRule) ShouldSyncNamespace(namespace *v1.Namespace) bool {
 	rules := rule.Spec.Rules
