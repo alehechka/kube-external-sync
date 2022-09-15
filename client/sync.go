@@ -15,6 +15,7 @@ func SyncExternals(config *SyncConfig) (err error) {
 	}
 
 	defer client.ExternalSyncRuleWatcher.Stop()
+	defer client.NamespaceWatcher.Stop()
 
 	for {
 		select {
@@ -28,6 +29,16 @@ func SyncExternals(config *SyncConfig) (err error) {
 				continue
 			}
 			client.ExternalSyncRuleEventHandler(externalSyncRuleEvent)
+		case namespaceEvent, ok := <-client.NamespaceWatcher.ResultChan():
+			if !ok {
+				log.Debug("Namespace watcher timed out, restarting now.")
+				if err := client.StartNamespaceWatcher(); err != nil {
+					return err
+				}
+				defer client.NamespaceWatcher.Stop()
+				continue
+			}
+			client.NamespaceEventHandler(namespaceEvent)
 		case s := <-client.SignalChannel:
 			log.Infof("Shutting down from signal: %s", s)
 			return nil
