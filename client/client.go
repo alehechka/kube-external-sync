@@ -23,6 +23,7 @@ type Client struct {
 	KubeExternalSyncClientset *kesclientset.KubeExternalSyncClientset
 
 	ExternalSyncRuleWatcher watch.Interface
+	NamespaceWatcher        watch.Interface
 	SignalChannel           chan os.Signal
 }
 
