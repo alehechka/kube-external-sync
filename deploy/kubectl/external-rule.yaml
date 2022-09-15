@@ -5,7 +5,7 @@ metadata:
 spec:
   namespace: default
   service:
-    name: nginx
+    name: nginx-external
   rules:
     namespaces:
       includeAnnotation:
