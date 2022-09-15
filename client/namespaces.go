@@ -53,13 +53,10 @@ func (client *Client) SyncNamespace(namespace *v1.Namespace) error {
 }
 
 func (client *Client) SyncResourcesToNamespace(namespace *v1.Namespace, rule *typesv1.ExternalSyncRule) error {
-	var service *v1.Service = nil
 	if rule.HasService() && rule.Spec.Service.IsService() {
-		service, _ = client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name)
-	}
-
-	if service != nil {
-		client.CreateUpdateExternalNameService(rule, namespace, service)
+		if service, err := client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name); service != nil && err == nil {
+			client.CreateUpdateExternalNameService(rule, namespace, service)
+		}
 	}
 
 	return nil
