@@ -80,7 +80,7 @@ func (client *Client) DeletedExternalSyncRuleHandler(rule *typesv1.ExternalSyncR
 
 	for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
 		if service != nil {
-			client.SyncDeletedExternalNameService(rule, &namespace, service)
+			client.SyncDeletedService(&namespace, service)
 		}
 	}
 
