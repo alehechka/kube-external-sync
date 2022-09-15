@@ -5,9 +5,37 @@ import (
 
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	"github.com/alehechka/kube-external-sync/constants"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
+
+func (client *Client) ServiceEventHandler(event watch.Event) error {
+	service, ok := event.Object.(*v1.Service)
+	if !ok {
+		log.Error("failed to cast Secret")
+		return nil
+	}
+
+	if IsServiceManagedBy(service) {
+		return nil
+	}
+
+	switch event.Type {
+	case watch.Added:
+		log.Info("added service")
+		// return client.AddedServiceHandler(service)
+	case watch.Modified:
+		log.Info("modified service")
+		// return client.ModifiedServiceHandler(service)
+	case watch.Deleted:
+		log.Info("deleted service")
+		// return client.DeletedServiceHandler(service)
+	}
+
+	return nil
+}
 
 func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
 	logger := serviceLogger(service, namespace)
