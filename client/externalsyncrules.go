@@ -4,6 +4,7 @@ import (
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -84,4 +85,12 @@ func (client *Client) DeletedExternalSyncRuleHandler(rule *typesv1.ExternalSyncR
 	}
 
 	return nil
+}
+
+func (client *Client) ListExternalSyncRules() (rules *typesv1.ExternalSyncRuleList, err error) {
+	rules, err = client.KubeExternalSyncClientset.ExternalSyncRules().List(client.Context, metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("failed to list SecretSyncRules: %s", err.Error())
+	}
+	return
 }
