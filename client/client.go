@@ -24,6 +24,7 @@ type Client struct {
 
 	ExternalSyncRuleWatcher watch.Interface
 	NamespaceWatcher        watch.Interface
+	ServiceWatcher          watch.Interface
 	SignalChannel           chan os.Signal
 }
 

@@ -5,9 +5,91 @@ import (
 
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	"github.com/alehechka/kube-external-sync/constants"
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
+
+func (client *Client) ServiceEventHandler(event watch.Event) error {
+	service, ok := event.Object.(*v1.Service)
+	if !ok {
+		log.Error("failed to cast Secret")
+		return nil
+	}
+
+	if IsServiceManagedBy(service) {
+		return nil
+	}
+
+	switch event.Type {
+	case watch.Added:
+		return client.AddedServiceHandler(service)
+	case watch.Modified:
+		return client.ModifiedServiceHandler(service)
+	case watch.Deleted:
+		return client.DeletedServiceHandler(service)
+	}
+
+	return nil
+}
+
+func (client *Client) AddedServiceHandler(service *v1.Service) error {
+	logger := serviceLogger(service)
+
+	if service.CreationTimestamp.Time.Before(client.StartTime) {
+		logger.Debugf("service will be synced on startup by ExternalSyncRule watcher")
+		return nil
+	}
+
+	logger.Infof("added")
+	return client.SyncAddedModifiedService(service)
+}
+
+func (client *Client) ModifiedServiceHandler(service *v1.Service) error {
+	if service.DeletionTimestamp != nil {
+		return nil
+	}
+
+	serviceLogger(service).Infof("modified")
+	return client.SyncAddedModifiedService(service)
+}
+
+func (client *Client) SyncAddedModifiedService(service *v1.Service) error {
+	rules, err := client.ListExternalSyncRules()
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range rules.Items {
+		if rule.ShouldSyncService(service) {
+			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+				client.CreateUpdateExternalNameService(&rule, &namespace, service)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (client *Client) DeletedServiceHandler(service *v1.Service) error {
+	serviceLogger(service).Infof("deleted")
+
+	rules, err := client.ListExternalSyncRules()
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range rules.Items {
+		if rule.ShouldSyncService(service) {
+			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+				client.SyncDeletedService(&namespace, service)
+			}
+		}
+	}
+
+	return nil
+}
 
 func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
 	logger := serviceLogger(service, namespace)
@@ -31,12 +113,12 @@ func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSync
 	return client.CreateExternalNameService(rule, namespace, service)
 }
 
-func (client *Client) SyncDeletedExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
+func (client *Client) SyncDeletedService(namespace *v1.Namespace, service *v1.Service) error {
 	logger := serviceLogger(service, namespace)
 
 	if namespaceService, err := client.GetService(namespace.Name, service.Name); err == nil {
 		if IsServiceManagedBy(namespaceService) {
-			return client.DeleteService(rule, namespace, service)
+			return client.DeleteService(namespace, service)
 		}
 
 		logger.Debugf("existing service is not managed and will not be deleted")
@@ -93,7 +175,7 @@ func (client *Client) UpdateExternalNameService(rule *typesv1.ExternalSyncRule, 
 	return err
 }
 
-func (client *Client) DeleteService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) (err error) {
+func (client *Client) DeleteService(namespace *v1.Namespace, service *v1.Service) (err error) {
 	logger := serviceLogger(service, namespace)
 
 	logger.Infof("deleting service")
