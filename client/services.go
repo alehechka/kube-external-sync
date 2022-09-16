@@ -14,7 +14,7 @@ import (
 func (client *Client) ServiceEventHandler(event watch.Event) error {
 	service, ok := event.Object.(*v1.Service)
 	if !ok {
-		log.Error("failed to cast Secret")
+		log.Error("failed to cast Service")
 		return nil
 	}
 

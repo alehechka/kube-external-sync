@@ -17,6 +17,7 @@ func SyncExternals(config *SyncConfig) (err error) {
 	defer client.ExternalSyncRuleWatcher.Stop()
 	defer client.NamespaceWatcher.Stop()
 	defer client.ServiceWatcher.Stop()
+	defer client.IngressWatcher.Stop()
 
 	for {
 		select {
@@ -50,6 +51,16 @@ func SyncExternals(config *SyncConfig) (err error) {
 				continue
 			}
 			client.ServiceEventHandler(serviceEvent)
+		case ingressEvent, ok := <-client.IngressWatcher.ResultChan():
+			if !ok {
+				log.Debug("Ingress watcher timed out, restarting now.")
+				if err := client.StartIngressWatcher(); err != nil {
+					return err
+				}
+				defer client.IngressWatcher.Stop()
+				continue
+			}
+			client.IngressEventHandler(ingressEvent)
 		case s := <-client.SignalChannel:
 			log.Infof("Shutting down from signal: %s", s)
 			return nil
