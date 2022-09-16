@@ -193,13 +193,6 @@ func ExternalNameServicesAreEqual(a, b *v1.Service) bool {
 		AnnotationsAreEqual(a.Annotations, b.Annotations))
 }
 
-func AnnotationsAreEqual(a, b map[string]string) bool {
-	aCopy := CopyAnnotations(a)
-	bCopy := CopyAnnotations(b)
-
-	return reflect.DeepEqual(aCopy, bCopy)
-}
-
 func PrepareExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) *v1.Service {
 	annotations := CopyAnnotations(service.Annotations)
 	annotations[constants.ManagedByAnnotationKey] = constants.ManagedByAnnotationValue
@@ -218,19 +211,6 @@ func PrepareExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Na
 			Ports:        service.Spec.Ports,
 		},
 	}
-}
-
-func CopyAnnotations(m map[string]string) map[string]string {
-	copy := make(map[string]string)
-
-	for key, value := range m {
-		if key == constants.ManagedByAnnotationKey || key == constants.LastAppliedConfigurationAnnotationKey {
-			continue
-		}
-		copy[key] = value
-	}
-
-	return copy
 }
 
 func IsServiceManagedBy(service *v1.Service) bool {
