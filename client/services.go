@@ -194,8 +194,7 @@ func ExternalNameServicesAreEqual(a, b *v1.Service) bool {
 }
 
 func PrepareExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) *v1.Service {
-	annotations := CopyAnnotations(service.Annotations)
-	annotations[constants.ManagedByAnnotationKey] = constants.ManagedByAnnotationValue
+	annotations := Manage(CopyAnnotations(service.Annotations))
 
 	return &v1.Service{
 		TypeMeta: service.TypeMeta,

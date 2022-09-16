@@ -25,3 +25,11 @@ func CopyAnnotations(m map[string]string) map[string]string {
 
 	return copy
 }
+
+func Manage(m map[string]string) map[string]string {
+	if m == nil {
+		m = make(map[string]string)
+	}
+	m[constants.ManagedByAnnotationKey] = constants.ManagedByAnnotationValue
+	return m
+}
