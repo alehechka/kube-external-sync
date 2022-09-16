@@ -66,6 +66,7 @@ type Ingress struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
 	TopLevelDomain string `json:"topLevelDomain"`
+	SecretName     string `json:"secretName"`
 }
 
 func (ingress *Ingress) IsIngress() bool {
@@ -84,18 +85,28 @@ func (ingress *Ingress) IsIngressRouteUDP() bool {
 	return ingress.Kind == "IngressRouteUDP"
 }
 
-func (ingress *Ingress) PrepareTopLevelDomain(namespace *v1.Namespace, netIngress *networkingv1.Ingress) string {
-	tld := ingress.TopLevelDomain
+func (ingress *Ingress) PrepareTLS(namespace *v1.Namespace, netIngress *networkingv1.Ingress) []networkingv1.IngressTLS {
+	return []networkingv1.IngressTLS{{
+		SecretName: ingress.SecretName,
+		Hosts:      []string{PrepareTLD(namespace, ingress.TopLevelDomain)},
+	}}
+}
+
+func (ingress *Ingress) PrepareIngressRules(namespace *v1.Namespace, netIngress *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
+
+	for _, rule := range netIngress.Spec.Rules {
+		rules = append(rules, networkingv1.IngressRule{
+			Host:             PrepareTLD(namespace, ingress.TopLevelDomain),
+			IngressRuleValue: rule.IngressRuleValue,
+		})
+	}
+
+	return
+}
+
+func PrepareTLD(namespace *v1.Namespace, tld string) string {
 	if len(tld) == 0 {
-	Outer:
-		for _, tls := range netIngress.Spec.TLS {
-			for _, host := range tls.Hosts {
-				if len(host) > 0 {
-					tld = host
-					break Outer
-				}
-			}
-		}
+		return ""
 	}
 
 	subdomains := strings.Split(tld, ".")

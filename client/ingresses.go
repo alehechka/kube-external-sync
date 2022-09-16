@@ -97,18 +97,22 @@ func (client *Client) DeleteIngress(namespace *v1.Namespace, ingress *networking
 	return
 }
 
-func PrepareIngress(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *networkingv1.Ingress) *networkingv1.Ingress {
-	annotations := Manage(CopyAnnotations(service.Annotations))
-
+func PrepareIngress(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, ingress *networkingv1.Ingress) *networkingv1.Ingress {
 	return &networkingv1.Ingress{
-		TypeMeta: service.TypeMeta,
+		TypeMeta: ingress.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        service.Name,
-			Namespace:   namespace.Name,
-			Labels:      service.Labels,
-			Annotations: annotations,
+			Name:            ingress.Name,
+			Namespace:       namespace.Name,
+			Labels:          ingress.Labels,
+			Annotations:     Manage(CopyAnnotations(ingress.Annotations)),
+			OwnerReferences: []metav1.OwnerReference{OwnerReference(rule)},
 		},
-		Spec: networkingv1.IngressSpec{},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: ingress.Spec.IngressClassName,
+			DefaultBackend:   ingress.Spec.DefaultBackend,
+			TLS:              rule.Spec.Ingress.PrepareTLS(namespace, ingress),
+			Rules:            rule.Spec.Ingress.PrepareIngressRules(namespace, ingress),
+		},
 	}
 }
 
