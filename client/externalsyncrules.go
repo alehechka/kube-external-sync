@@ -4,6 +4,7 @@ import (
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -35,9 +36,17 @@ func (client *Client) AddedExternalSyncRuleHandler(rule *typesv1.ExternalSyncRul
 		service, _ = client.GetService(rule.Spec.Namespace, rule.Spec.Service.Name)
 	}
 
+	var ingress *networkingv1.Ingress = nil
+	if rule.HasIngress() && rule.Spec.Ingress.IsIngress() {
+		ingress, _ = client.GetIngress(rule.Spec.Namespace, rule.Spec.Ingress.Name)
+	}
+
 	for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
 		if service != nil {
 			client.CreateUpdateExternalNameService(rule, &namespace, service)
+		}
+		if ingress != nil {
+			client.CreateUpdateIngress(rule, &namespace, ingress)
 		}
 	}
 

@@ -1,6 +1,8 @@
 package client
 
 import (
+	"reflect"
+
 	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
 	"github.com/alehechka/kube-external-sync/constants"
 	log "github.com/sirupsen/logrus"
@@ -34,6 +36,28 @@ func (client *Client) IngressEventHandler(event watch.Event) error {
 	}
 
 	return nil
+}
+
+func (client *Client) CreateUpdateIngress(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, ingress *networkingv1.Ingress) error {
+	logger := ingressLogger(ingress, namespace)
+
+	if namespaceIngress, err := client.GetIngress(namespace.Name, ingress.Name); err == nil {
+		logger.Debugf("already exists")
+
+		if !IsIngressManagedBy(namespaceIngress) {
+			logger.Debugf("existing service is not managed and will not be updated")
+			return nil
+		}
+
+		if IngressesAreEqual(ingress, namespaceIngress) {
+			logger.Debugf("existing service contains same data")
+			return nil
+		}
+
+		return client.UpdateIngress(rule, namespace, ingress)
+	}
+
+	return client.CreateIngress(rule, namespace, ingress)
 }
 
 func (client *Client) GetIngress(namespace, name string) (ingress *networkingv1.Ingress, err error) {
@@ -95,6 +119,25 @@ func (client *Client) DeleteIngress(namespace *v1.Namespace, ingress *networking
 	}
 
 	return
+}
+
+func IngressesAreEqual(a, b *networkingv1.Ingress) bool {
+	return (IngressRuleValuesAreEqual(a.Spec.Rules, b.Spec.Rules) &&
+		AnnotationsAreEqual(a.Annotations, b.Annotations))
+}
+
+func IngressRuleValuesAreEqual(a, b []networkingv1.IngressRule) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for index := range a {
+		if !reflect.DeepEqual(a[index].IngressRuleValue, b[index].IngressRuleValue) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func PrepareIngress(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, ingress *networkingv1.Ingress) *networkingv1.Ingress {

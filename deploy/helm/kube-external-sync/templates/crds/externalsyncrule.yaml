@@ -58,6 +58,7 @@ spec:
                       type: string
                   required:
                     - name
+                    - topLevelDomain
                 rules:
                   type: object
                   properties:
