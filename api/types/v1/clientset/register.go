@@ -9,6 +9,7 @@ import (
 
 const GroupName = "kube-external-sync.io"
 const GroupVersion = "v1"
+const ExternalSyncRule = "ExternalSyncRule"
 
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: GroupVersion}
 

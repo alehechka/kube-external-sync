@@ -199,10 +199,11 @@ func PrepareExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Na
 	return &v1.Service{
 		TypeMeta: service.TypeMeta,
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        service.Name,
-			Namespace:   namespace.Name,
-			Labels:      service.Labels,
-			Annotations: annotations,
+			Name:            service.Name,
+			Namespace:       namespace.Name,
+			Labels:          service.Labels,
+			Annotations:     annotations,
+			OwnerReferences: []metav1.OwnerReference{OwnerReference(rule)},
 		},
 		Spec: v1.ServiceSpec{
 			Type:         v1.ServiceTypeExternalName,

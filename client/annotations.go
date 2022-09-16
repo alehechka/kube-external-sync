@@ -3,7 +3,11 @@ package client
 import (
 	"reflect"
 
+	typesv1 "github.com/alehechka/kube-external-sync/api/types/v1"
+	"github.com/alehechka/kube-external-sync/api/types/v1/clientset"
 	"github.com/alehechka/kube-external-sync/constants"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 )
 
 func AnnotationsAreEqual(a, b map[string]string) bool {
@@ -32,4 +36,13 @@ func Manage(m map[string]string) map[string]string {
 	}
 	m[constants.ManagedByAnnotationKey] = constants.ManagedByAnnotationValue
 	return m
+}
+
+func OwnerReference(rule *typesv1.ExternalSyncRule) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: clientset.GroupName,
+		Kind:       clientset.ExternalSyncRule,
+		Name:       rule.Name,
+		UID:        uuid.NewUUID(),
+	}
 }
