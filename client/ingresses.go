@@ -98,10 +98,18 @@ func (client *Client) DeleteIngress(namespace *v1.Namespace, ingress *networking
 }
 
 func PrepareIngress(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *networkingv1.Ingress) *networkingv1.Ingress {
-	annotations := CopyAnnotations(service.Annotations)
-	annotations[constants.ManagedByAnnotationKey] = constants.ManagedByAnnotationValue
+	annotations := Manage(CopyAnnotations(service.Annotations))
 
-	return &networkingv1.Ingress{}
+	return &networkingv1.Ingress{
+		TypeMeta: service.TypeMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        service.Name,
+			Namespace:   namespace.Name,
+			Labels:      service.Labels,
+			Annotations: annotations,
+		},
+		Spec: networkingv1.IngressSpec{},
+	}
 }
 
 func IsIngressManagedBy(ingress *networkingv1.Ingress) bool {

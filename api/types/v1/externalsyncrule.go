@@ -3,9 +3,11 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/alehechka/kube-external-sync/api/types"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -64,6 +66,42 @@ type Ingress struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
 	TopLevelDomain string `json:"topLevelDomain"`
+}
+
+func (ingress *Ingress) IsIngress() bool {
+	return ingress.Kind == "Ingress"
+}
+
+func (ingress *Ingress) IsIngressRoute() bool {
+	return ingress.Kind == "IngressRoute"
+}
+
+func (ingress *Ingress) IsIngressRouteTCP() bool {
+	return ingress.Kind == "IngressRouteTCP"
+}
+
+func (ingress *Ingress) IsIngressRouteUDP() bool {
+	return ingress.Kind == "IngressRouteUDP"
+}
+
+func (ingress *Ingress) PrepareTopLevelDomain(namespace *v1.Namespace, netIngress *networkingv1.Ingress) string {
+	tld := ingress.TopLevelDomain
+	if len(tld) == 0 {
+	Outer:
+		for _, tls := range netIngress.Spec.TLS {
+			for _, host := range tls.Hosts {
+				if len(host) > 0 {
+					tld = host
+					break Outer
+				}
+			}
+		}
+	}
+
+	subdomains := strings.Split(tld, ".")
+	subdomains[0] = namespace.Name
+
+	return strings.Join(subdomains, ".")
 }
 
 // +kubebuilder:object:generate=true
