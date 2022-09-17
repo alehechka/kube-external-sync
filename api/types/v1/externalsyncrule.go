@@ -105,10 +105,6 @@ func (ingress *Ingress) PrepareIngressRules(namespace *v1.Namespace, netIngress 
 }
 
 func PrepareTLD(namespace *v1.Namespace, tld string) string {
-	if len(tld) == 0 {
-		return ""
-	}
-
 	subdomains := strings.Split(tld, ".")
 	subdomains[0] = namespace.Name
 
