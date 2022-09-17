@@ -6,6 +6,9 @@ spec:
   namespace: default
   service:
     name: nginx-external
+  ingress:
+    name: nginx-external
+    topLevelDomain: '*.feature.lehechka.com'
   rules:
     namespaces:
       includeAnnotation:

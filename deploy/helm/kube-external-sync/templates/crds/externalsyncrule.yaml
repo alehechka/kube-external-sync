@@ -54,8 +54,11 @@ spec:
                         # - Ingress Route UDP
                     topLevelDomain:
                       type: string
+                    secretName: 
+                      type: string
                   required:
                     - name
+                    - topLevelDomain
                 rules:
                   type: object
                   properties:

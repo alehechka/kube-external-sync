@@ -3,9 +3,11 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/alehechka/kube-external-sync/api/types"
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -64,6 +66,49 @@ type Ingress struct {
 	Name           string `json:"name"`
 	Kind           string `json:"kind"`
 	TopLevelDomain string `json:"topLevelDomain"`
+	SecretName     string `json:"secretName"`
+}
+
+func (ingress *Ingress) IsIngress() bool {
+	return ingress.Kind == "Ingress"
+}
+
+func (ingress *Ingress) IsIngressRoute() bool {
+	return ingress.Kind == "IngressRoute"
+}
+
+func (ingress *Ingress) IsIngressRouteTCP() bool {
+	return ingress.Kind == "IngressRouteTCP"
+}
+
+func (ingress *Ingress) IsIngressRouteUDP() bool {
+	return ingress.Kind == "IngressRouteUDP"
+}
+
+func (ingress *Ingress) PrepareTLS(namespace *v1.Namespace, netIngress *networkingv1.Ingress) []networkingv1.IngressTLS {
+	return []networkingv1.IngressTLS{{
+		SecretName: ingress.SecretName,
+		Hosts:      []string{PrepareTLD(namespace, ingress.TopLevelDomain)},
+	}}
+}
+
+func (ingress *Ingress) PrepareIngressRules(namespace *v1.Namespace, netIngress *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
+
+	for _, rule := range netIngress.Spec.Rules {
+		rules = append(rules, networkingv1.IngressRule{
+			Host:             PrepareTLD(namespace, ingress.TopLevelDomain),
+			IngressRuleValue: rule.IngressRuleValue,
+		})
+	}
+
+	return
+}
+
+func PrepareTLD(namespace *v1.Namespace, tld string) string {
+	subdomains := strings.Split(tld, ".")
+	subdomains[0] = namespace.Name
+
+	return strings.Join(subdomains, ".")
 }
 
 // +kubebuilder:object:generate=true
@@ -98,6 +143,12 @@ func (rule *ExternalSyncRule) ShouldSyncService(service *v1.Service) bool {
 	return rule.HasService() &&
 		rule.Spec.Namespace == service.Namespace &&
 		rule.Spec.Service.Name == service.Name
+}
+
+func (rule *ExternalSyncRule) ShouldSyncIngress(ingress *networkingv1.Ingress) bool {
+	return rule.HasIngress() &&
+		rule.Spec.Namespace == ingress.Namespace &&
+		rule.Spec.Service.Name == ingress.Name
 }
 
 // ShouldSyncNamespace determines whether or not the given Namespace should be synced

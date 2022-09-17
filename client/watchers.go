@@ -19,6 +19,10 @@ func (client *Client) InitializeWatchers() (err error) {
 		return err
 	}
 
+	if err := client.StartIngressWatcher(); err != nil {
+		return err
+	}
+
 	return
 }
 
@@ -34,5 +38,10 @@ func (client *Client) StartNamespaceWatcher() (err error) {
 
 func (client *Client) StartServiceWatcher() (err error) {
 	client.ServiceWatcher, err = client.DefaultClientset.CoreV1().Services(v1.NamespaceAll).Watch(client.Context, metav1.ListOptions{})
+	return
+}
+
+func (client *Client) StartIngressWatcher() (err error) {
+	client.IngressWatcher, err = client.DefaultClientset.NetworkingV1().Ingresses(v1.NamespaceAll).Watch(client.Context, metav1.ListOptions{})
 	return
 }

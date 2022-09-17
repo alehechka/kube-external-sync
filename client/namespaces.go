@@ -59,6 +59,12 @@ func (client *Client) SyncResourcesToNamespace(namespace *v1.Namespace, rule *ty
 		}
 	}
 
+	if rule.HasIngress() && rule.Spec.Ingress.IsIngress() {
+		if ingress, err := client.GetIngress(rule.Spec.Namespace, rule.Spec.Ingress.Name); ingress != nil && err == nil {
+			client.CreateUpdateIngress(rule, namespace, ingress)
+		}
+	}
+
 	return nil
 }
 
