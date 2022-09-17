@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alehechka/kube-external-sync/replicate/common"
+	"github.com/alehechka/kube-external-sync/client/replicate/common"
 )
 
 type response struct {
