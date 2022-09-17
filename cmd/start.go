@@ -3,6 +3,7 @@ package cmd
 import (
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alehechka/kube-external-sync/client"
 
@@ -18,6 +19,7 @@ const (
 	kubeconfigFlag   = "kubeconfig"
 	podNamespaceFlag = "pod-namespace"
 	livenessPortFlag = "liveness-port"
+	resyncPeriodFlag = "resync-period"
 )
 
 func kubeconfig() *cli.StringFlag {
@@ -53,6 +55,12 @@ var startFlags = []cli.Flag{
 		Value:   8080,
 	},
 	&cli.StringFlag{
+		Name:    resyncPeriodFlag,
+		EnvVars: []string{"RESYNC_PERIOD"},
+		Usage:   "resynchronization period",
+		Value:   "30m",
+	},
+	&cli.StringFlag{
 		Name:    podNamespaceFlag,
 		Usage:   "Specifies the namespace that current application pod is running in.",
 		EnvVars: []string{"POD_NAMESPACE"},
@@ -67,10 +75,16 @@ var startFlags = []cli.Flag{
 func startKubeSecretSync(ctx *cli.Context) (err error) {
 	PrepareLogger(ctx)
 
+	resyncPeriod, err := time.ParseDuration(ctx.String(resyncPeriodFlag))
+	if err != nil {
+		return err
+	}
+
 	return client.SyncExternals(&client.SyncConfig{
 		PodNamespace: ctx.String(podNamespaceFlag),
 
 		LivenessPort: ctx.Int(livenessPortFlag),
+		ResyncPeriod: resyncPeriod,
 
 		OutOfCluster: ctx.Bool(outOfClusterFlag),
 		KubeConfig:   ctx.String(kubeconfigFlag),

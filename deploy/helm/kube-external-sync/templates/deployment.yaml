@@ -35,6 +35,8 @@ spec:
               value: {{ .Values.deployment.env.LOG_FORMAT }}
             - name: LIVENESS_PORT
               value: '{{ .Values.deployment.port }}'
+            - name: RESYNC_PERIOD
+              value: {{ .Values.deployment.env.RESYNC_PERIOD }}
           ports:
             - name: health
               containerPort: {{ .Values.deployment.port }}
