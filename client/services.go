@@ -72,25 +72,6 @@ func (client *Client) SyncAddedModifiedService(service *v1.Service) error {
 	return nil
 }
 
-func (client *Client) DeletedServiceHandler(service *v1.Service) error {
-	serviceLogger(service).Infof("deleted")
-
-	rules, err := client.ListExternalSyncRules()
-	if err != nil {
-		return err
-	}
-
-	for _, rule := range rules.Items {
-		if rule.ShouldSyncService(service) {
-			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
-				client.SyncDeletedService(&namespace, service)
-			}
-		}
-	}
-
-	return nil
-}
-
 func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSyncRule, namespace *v1.Namespace, service *v1.Service) error {
 	logger := serviceLogger(service, namespace)
 
@@ -111,6 +92,25 @@ func (client *Client) CreateUpdateExternalNameService(rule *typesv1.ExternalSync
 	}
 
 	return client.CreateExternalNameService(rule, namespace, service)
+}
+
+func (client *Client) DeletedServiceHandler(service *v1.Service) error {
+	serviceLogger(service).Infof("deleted")
+
+	rules, err := client.ListExternalSyncRules()
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range rules.Items {
+		if rule.ShouldSyncService(service) {
+			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+				client.SyncDeletedService(&namespace, service)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (client *Client) SyncDeletedService(namespace *v1.Namespace, service *v1.Service) error {
