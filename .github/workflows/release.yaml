@@ -8,29 +8,6 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
-  goreleaser:
-    name: Compile and upload binaries
-    runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
-
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '1.19'
-
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          args: release --rm-dist --skip-docker
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   push_docker_image:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest

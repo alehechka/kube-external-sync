@@ -24,10 +24,35 @@ serviceAccount:
   name: ''
   automountServiceAccountToken: true
 
-resources:
-  requests:
-    cpu: 0.1
-    memory: 15Mi
-  limits:
-    cpu: 0.2
-    memory: 30Mi
+deployment:
+  # Annotations to add to the service account
+  annotations: {}
+  # port for liveness probe
+  port: 80
+  env:
+    # Log level (trace, debug, info, warn, error)
+    LOG_LEVEL: 'info'
+    # Log format (plain, json)
+    LOG_FORMAT: 'plain'
+
+resources: {}
+  # requests:
+  #   cpu: 0.1
+  #   memory: 15Mi
+  # limits:
+  #   cpu: 0.2
+  #   memory: 30Mi
+
+livenessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1

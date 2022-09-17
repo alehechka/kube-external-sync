@@ -1,5 +1,0 @@
-kind: Namespace
-apiVersion: v1
-metadata:
-  name: {{ .Release.Namespace }}
-  labels: {{- include "kube-external-sync.labels" . | nindent 4 }}

@@ -4,6 +4,8 @@ package client
 type SyncConfig struct {
 	PodNamespace string
 
+	LivenessPort int
+
 	OutOfCluster bool
 	KubeConfig   string
 }
