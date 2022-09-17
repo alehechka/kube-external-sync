@@ -1,4 +1,4 @@
-package constants
+package common
 
 // ManagedByAnnotationKey is an annotation key appended to kube-external-sync managed resources.
 const ManagedByAnnotationKey = "app.kubernetes.io/managed-by"
