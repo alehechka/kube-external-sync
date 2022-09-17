@@ -25,14 +25,49 @@ func (client *Client) IngressEventHandler(event watch.Event) error {
 
 	switch event.Type {
 	case watch.Added:
-		ingressLogger(ingress).Infof("added")
-		// return client.AddedIngressHandler(ingress)
+		return client.AddedIngressHandler(ingress)
 	case watch.Modified:
-		ingressLogger(ingress).Infof("modified")
-		// return client.ModifiedIngressHandler(ingress)
+		return client.ModifiedIngressHandler(ingress)
 	case watch.Deleted:
-		ingressLogger(ingress).Infof("deleted")
-		// return client.DeletedIngressHandler(ingress)
+		return client.DeletedIngressHandler(ingress)
+	}
+
+	return nil
+}
+
+func (client *Client) AddedIngressHandler(ingress *networkingv1.Ingress) error {
+	logger := ingressLogger(ingress)
+
+	if ingress.CreationTimestamp.Time.Before(client.StartTime) {
+		logger.Debugf("ingress will be synced on startup by ExternalSyncRule watcher")
+		return nil
+	}
+
+	logger.Infof("added")
+	return client.SyncAddedModifiedIngress(ingress)
+}
+
+func (client *Client) ModifiedIngressHandler(ingress *networkingv1.Ingress) error {
+	if ingress.DeletionTimestamp != nil {
+		return nil
+	}
+
+	ingressLogger(ingress).Infof("modified")
+	return client.SyncAddedModifiedIngress(ingress)
+}
+
+func (client *Client) SyncAddedModifiedIngress(ingress *networkingv1.Ingress) error {
+	rules, err := client.ListExternalSyncRules()
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range rules.Items {
+		if rule.ShouldSyncIngress(ingress) {
+			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+				client.CreateUpdateIngress(&rule, &namespace, ingress)
+			}
+		}
 	}
 
 	return nil
@@ -58,6 +93,39 @@ func (client *Client) CreateUpdateIngress(rule *typesv1.ExternalSyncRule, namesp
 	}
 
 	return client.CreateIngress(rule, namespace, ingress)
+}
+
+func (client *Client) DeletedIngressHandler(ingress *networkingv1.Ingress) error {
+	ingressLogger(ingress).Infof("deleted")
+
+	rules, err := client.ListExternalSyncRules()
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range rules.Items {
+		if rule.ShouldSyncIngress(ingress) {
+			for _, namespace := range rule.Namespaces(client.Context, client.DefaultClientset) {
+				client.SyncDeletedIngress(&namespace, ingress)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (client *Client) SyncDeletedIngress(namespace *v1.Namespace, ingress *networkingv1.Ingress) error {
+	logger := ingressLogger(ingress, namespace)
+
+	if namespaceIngress, err := client.GetIngress(namespace.Name, ingress.Name); err == nil {
+		if IsIngressManagedBy(namespaceIngress) {
+			return client.DeleteIngress(namespace, ingress)
+		}
+
+		logger.Debugf("existing ingress is not managed and will not be deleted")
+	}
+
+	return nil
 }
 
 func (client *Client) GetIngress(namespace, name string) (ingress *networkingv1.Ingress, err error) {
