@@ -18,8 +18,6 @@ spec:
     spec:
       serviceAccountName: {{ include "kube-external-sync.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
-      imagePullSecrets:
-        - name: image-pull-secret
       containers:
         - name: {{ .Chart.Name }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
