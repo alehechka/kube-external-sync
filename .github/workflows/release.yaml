@@ -8,29 +8,6 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
-  goreleaser:
-    name: Compile and upload binaries
-    runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
-
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-go@v3
-        with:
-          go-version: '1.19'
-
-      - uses: goreleaser/goreleaser-action@v3
-        with:
-          args: release --rm-dist --skip-docker
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   push_docker_image:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -93,7 +70,7 @@ jobs:
 
       - name: Update versions
         run: |
-          yq --inplace '.image.tag = "${{ github.ref_name }}"' values.yaml
+          yq --inplace '.image.tag = "${{ github.ref_name }}", .image.pullPolicy = "IfNotPresent"' values.yaml
           yq --inplace '.version = "${{ steps.chart.outputs.version }}" | .appVersion = "${{ github.ref_name }}"' Chart.yaml
         working-directory: deploy/helm/kube-external-sync
 
@@ -101,11 +78,7 @@ jobs:
         run: helm template --namespace kube-external-sync kube-external-sync deploy/helm/kube-external-sync > kube-external-sync.yaml
 
       - name: Build Package
-        run: |
-          # package can't include namespace definition
-          rm deploy/helm/kube-external-sync/templates/namespace.yaml
-
-          helm package deploy/helm/kube-external-sync
+        run: helm package deploy/helm/kube-external-sync
 
       - name: Add to release
         run: gh release upload ${{ github.ref_name }} kube-external-sync.yaml kube-external-sync-${{ steps.chart.outputs.version }}.tgz

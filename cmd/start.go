@@ -2,19 +2,24 @@ package cmd
 
 import (
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/alehechka/kube-external-sync/client"
-	log "github.com/sirupsen/logrus"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/util/homedir"
 )
 
 const (
-	debugFlag        = "debug"
+	logLevelFlag     = "log-level"
+	logFormatFlag    = "log-format"
 	outOfClusterFlag = "out-of-cluster"
 	kubeconfigFlag   = "kubeconfig"
-	podNamespace     = "pod-namespace"
+	podNamespaceFlag = "pod-namespace"
+	livenessPortFlag = "liveness-port"
+	resyncPeriodFlag = "resync-period"
 )
 
 func kubeconfig() *cli.StringFlag {
@@ -30,13 +35,33 @@ func kubeconfig() *cli.StringFlag {
 
 var startFlags = []cli.Flag{
 	kubeconfig(),
-	&cli.BoolFlag{
-		Name:    debugFlag,
-		Usage:   "Log debug messages.",
-		EnvVars: []string{"DEBUG"},
+	&cli.StringFlag{
+		Name:    logLevelFlag,
+		Usage:   "Log level (trace, debug, info, warn, error)",
+		EnvVars: []string{"LOG_LEVEL"},
+		Value:   "info",
 	},
 	&cli.StringFlag{
-		Name:    podNamespace,
+		Name:    logFormatFlag,
+		Usage:   "Log format (plain, json)",
+		EnvVars: []string{"LOG_FORMAT"},
+		Value:   "plain",
+	},
+	&cli.IntFlag{
+		Name:    livenessPortFlag,
+		Aliases: []string{"p"},
+		EnvVars: []string{"LIVENESS_PORT"},
+		Usage:   "Specifies the port the listen on for the liveness probe.",
+		Value:   8080,
+	},
+	&cli.StringFlag{
+		Name:    resyncPeriodFlag,
+		EnvVars: []string{"RESYNC_PERIOD"},
+		Usage:   "resynchronization period",
+		Value:   "30m",
+	},
+	&cli.StringFlag{
+		Name:    podNamespaceFlag,
 		Usage:   "Specifies the namespace that current application pod is running in.",
 		EnvVars: []string{"POD_NAMESPACE"},
 	},
@@ -48,16 +73,45 @@ var startFlags = []cli.Flag{
 }
 
 func startKubeSecretSync(ctx *cli.Context) (err error) {
-	if ctx.Bool(debugFlag) {
-		log.SetLevel(log.DebugLevel)
+	PrepareLogger(ctx)
+
+	resyncPeriod, err := time.ParseDuration(ctx.String(resyncPeriodFlag))
+	if err != nil {
+		return err
 	}
 
 	return client.SyncExternals(&client.SyncConfig{
-		PodNamespace: ctx.String(podNamespace),
+		PodNamespace: ctx.String(podNamespaceFlag),
+
+		LivenessPort: ctx.Int(livenessPortFlag),
+		ResyncPeriod: resyncPeriod,
 
 		OutOfCluster: ctx.Bool(outOfClusterFlag),
 		KubeConfig:   ctx.String(kubeconfigFlag),
 	})
+}
+
+func PrepareLogger(ctx *cli.Context) {
+	switch strings.ToUpper(strings.TrimSpace(ctx.String(logLevelFlag))) {
+	case "TRACE":
+		log.SetLevel(log.TraceLevel)
+	case "DEBUG":
+		log.SetLevel(log.DebugLevel)
+	case "WARN", "WARNING":
+		log.SetLevel(log.WarnLevel)
+	case "ERROR":
+		log.SetLevel(log.ErrorLevel)
+	case "FATAL":
+		log.SetLevel(log.FatalLevel)
+	case "PANIC":
+		log.SetLevel(log.PanicLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+
+	if strings.ToUpper(strings.TrimSpace(ctx.String(logFormatFlag))) == "JSON" {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
 }
 
 // StartCommand starts the kube-external-sync process.
