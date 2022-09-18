@@ -70,7 +70,7 @@ jobs:
 
       - name: Update versions
         run: |
-          yq --inplace '.image.tag = "${{ github.ref_name }}"' values.yaml
+          yq --inplace '.image.tag = "${{ github.ref_name }}", .image.pullPolicy = "IfNotPresent"' values.yaml
           yq --inplace '.version = "${{ steps.chart.outputs.version }}" | .appVersion = "${{ github.ref_name }}"' Chart.yaml
         working-directory: deploy/helm/kube-external-sync
 
