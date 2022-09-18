@@ -78,11 +78,7 @@ jobs:
         run: helm template --namespace kube-external-sync kube-external-sync deploy/helm/kube-external-sync > kube-external-sync.yaml
 
       - name: Build Package
-        run: |
-          # package can't include namespace definition
-          rm deploy/helm/kube-external-sync/templates/namespace.yaml
-
-          helm package deploy/helm/kube-external-sync
+        run: helm package deploy/helm/kube-external-sync
 
       - name: Add to release
         run: gh release upload ${{ github.ref_name }} kube-external-sync.yaml kube-external-sync-${{ steps.chart.outputs.version }}.tgz
