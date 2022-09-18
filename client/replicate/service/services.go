@@ -54,7 +54,7 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 		WithField("source", common.MustGetKey(source)).
 		WithField("target", common.MustGetKey(target))
 
-	if !common.IsManagedBy(target.ObjectMeta) {
+	if !common.IsManagedBy(target) {
 		logger.Debugf("target is not managed and will not be synced")
 		return nil
 	}

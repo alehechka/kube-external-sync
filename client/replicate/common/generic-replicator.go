@@ -72,7 +72,7 @@ func NewGenericReplicator(ctx context.Context, config ReplicatorConfig) *Generic
 		config.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    repl.ResourceAdded,
-			UpdateFunc: func(_, new interface{}) { repl.ResourceAdded(new) },
+			UpdateFunc: repl.ResourceUpdated,
 			DeleteFunc: repl.ResourceDeleted,
 		},
 	)
@@ -189,6 +189,10 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 	sourceKey := MustGetKey(objectMeta)
 	logger := log.WithField("kind", r.Kind).WithField("resource", sourceKey)
 
+	if IsManagedBy(MustGetObject(objectMeta)) {
+		return
+	}
+
 	if replicas, ok := r.DependencyMap[sourceKey]; ok {
 		logger.Debugf("objectMeta %s has %d dependents", sourceKey, len(replicas))
 		if err := r.updateDependents(obj, replicas); err != nil {
@@ -232,12 +236,24 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 	}
 }
 
+// ResourceUpdated checks resources with ReplicateTo or ReplicateFromAnnotation annotation
+func (r *GenericReplicator) ResourceUpdated(old interface{}, new interface{}) {
+	oldAnnotations := MustGetObject(old).GetAnnotations()
+	newAnnotations := MustGetObject(new).GetAnnotations()
+
+	if !reflect.DeepEqual(oldAnnotations, newAnnotations) {
+		r.ResourceDeleted(old)
+	}
+
+	r.ResourceAdded(new)
+}
+
 // replicateResourceToMatchingNamespaces replicates resources with ReplicateTo annotation
 func (r *GenericReplicator) replicateResourceToMatchingNamespaces(obj interface{}, nsPatternList string, namespaceList []v1.Namespace) error {
 	cacheKey := MustGetKey(obj)
 	logger := log.WithField("kind", r.Kind).WithField("source", cacheKey)
 
-	logger.Infof("%s %s to be replicated to: [%s]", r.Kind, cacheKey, nsPatternList)
+	logger.Infof("%s %s to be replicated to: %s", r.Kind, cacheKey, nsPatternList)
 
 	replicateTo := r.getNamespacesToReplicate(MustGetObject(obj).GetNamespace(), nsPatternList, namespaceList)
 
@@ -336,9 +352,13 @@ func (r *GenericReplicator) updateDependents(obj interface{}, dependents map[str
 
 // ResourceDeleted watches for the deletion of resources
 func (r *GenericReplicator) ResourceDeleted(source interface{}) {
+	if IsManagedBy(MustGetObject(source)) {
+		return
+	}
+
 	sourceKey := MustGetKey(source)
 	logger := log.WithField("kind", r.Kind).WithField("source", sourceKey)
-	logger.Debugf("Deleting %s %s", r.Kind, sourceKey)
+	logger.Debugf("Deleting dependents of %s %s", r.Kind, sourceKey)
 
 	r.ResourceDeletedReplicateTo(source)
 
@@ -422,6 +442,8 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 	if !exist {
 		return
 	}
+
+	logger.Infof("Deleting %s: %s", r.Kind, sourceKey)
 	if err := r.UpdateFuncs.DeleteReplicatedResource(targetResource); err != nil {
 		logger.WithError(err).Errorf("Could not delete resource %s: %+v", targetLocation, err)
 	}

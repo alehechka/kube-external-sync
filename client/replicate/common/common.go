@@ -86,8 +86,8 @@ func PrepareLabels(source metav1.ObjectMeta) map[string]string {
 }
 
 // IsManagedBy checks the sources labels to see if the resource is currently being managed-by this controller
-func IsManagedBy(source metav1.ObjectMeta) bool {
-	managedBy, ok := source.Labels[ManagedByLabelKey]
+func IsManagedBy(source metav1.Object) bool {
+	managedBy, ok := source.GetLabels()[ManagedByLabelKey]
 
 	return ok && managedBy == ManagedByLabelValue
 }
