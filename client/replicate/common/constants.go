@@ -44,9 +44,3 @@ const (
 	DefaultExternalNameSuffix     = "svc.cluster.local"
 	TraefikMeshExternalNameSuffix = "traefik.mesh"
 )
-
-// ExternalNameOptions array of available ExternalName suffixes
-var ExternalNameOptions = map[string]struct{}{
-	DefaultExternalNameSuffix:     {},
-	TraefikMeshExternalNameSuffix: {},
-}

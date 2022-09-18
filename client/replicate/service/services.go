@@ -129,10 +129,8 @@ func prepareExternalName(namespace string, source *v1.Service) string {
 }
 
 func getExternalNameSuffix(source *v1.Service) string {
-	if suffix, ok := source.Annotations[common.ExternalNameSuffix]; ok {
-		if _, ok := common.ExternalNameOptions[suffix]; ok {
-			return suffix
-		}
+	if suffix, ok := source.Annotations[common.ExternalNameSuffix]; ok && len(suffix) > 0 {
+		return suffix
 	}
 
 	return common.DefaultExternalNameSuffix
