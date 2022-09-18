@@ -222,6 +222,7 @@ func (r *GenericReplicator) ResourceUpdated(old interface{}, new interface{}) {
 	oldAnnotations := MustGetObject(old).GetAnnotations()
 	newAnnotations := MustGetObject(new).GetAnnotations()
 
+	// TODO: refactor to only delete unused resources (running into race condition with Ingresses)
 	if !reflect.DeepEqual(oldAnnotations, newAnnotations) {
 		r.ResourceDeleted(old)
 	}
@@ -271,7 +272,7 @@ func (r *GenericReplicator) replicateResourceToNamespaces(obj interface{}, targe
 func (r *GenericReplicator) replicateResourceToMatchingNamespacesByLabel(obj interface{}, selector labels.Selector) error {
 	cacheKey := MustGetKey(obj)
 
-	namespaces, err := r.Client.CoreV1().Namespaces().List(r.Context, metav1.ListOptions{LabelSelector: selector.String()})
+	namespaces, err := r.ListNamespaces(metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return errors.Wrap(err, "error while listing namespaces by selector")
 	}
@@ -344,7 +345,7 @@ func (r *GenericReplicator) ResourceDeletedReplicateTo(source interface{}) {
 	namespaceList, replicateTo := objMeta.GetAnnotations()[ReplicateTo]
 	if replicateTo {
 		filters := strings.Split(namespaceList, ",")
-		list, err := r.Client.CoreV1().Namespaces().List(r.Context, metav1.ListOptions{})
+		list, err := r.ListNamespaces()
 		if err != nil {
 			err = errors.Wrapf(err, "Failed to list namespaces: %v", err)
 			logger.WithError(err).Errorf("Could not get namespaces: %+v", err)
@@ -362,7 +363,7 @@ func (r *GenericReplicator) ResourceDeletedReplicateTo(source interface{}) {
 			logger.WithError(err).Errorf("Could not get namespaces: %+v", err)
 		} else {
 			var namespaces *v1.NamespaceList
-			namespaces, err = r.Client.CoreV1().Namespaces().List(r.Context, metav1.ListOptions{LabelSelector: namespaceSelector.String()})
+			namespaces, err = r.ListNamespaces(metav1.ListOptions{LabelSelector: namespaceSelector.String()})
 			if err != nil {
 				err = errors.Wrapf(err, "Failed to list namespaces: %v", err)
 				logger.WithError(err).Errorf("Could not get namespaces: %+v", err)
@@ -415,4 +416,12 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 		logger.WithError(err).Errorf("Could not delete resource %s: %+v", targetLocation, err)
 	}
 	r.Store.Delete(source)
+}
+
+// ListNamespaces is a simple wrapper for listing namespaces
+func (r *GenericReplicator) ListNamespaces(listOptions ...metav1.ListOptions) (*v1.NamespaceList, error) {
+	if len(listOptions) == 0 {
+		listOptions = append(listOptions, metav1.ListOptions{})
+	}
+	return r.Client.CoreV1().Namespaces().List(r.Context, listOptions[0])
 }
