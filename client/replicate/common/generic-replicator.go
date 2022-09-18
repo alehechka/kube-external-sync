@@ -41,8 +41,7 @@ type GenericReplicator struct {
 	Controller cache.Controller
 	Context    context.Context
 
-	DependencyMap map[string]map[string]interface{}
-	UpdateFuncs   UpdateFuncs
+	UpdateFuncs UpdateFuncs
 
 	// ReplicateToList is a set that caches the names of all resources that have a
 	// "replicate-to" annotation.
@@ -58,7 +57,6 @@ func NewGenericReplicator(ctx context.Context, config ReplicatorConfig) *Generic
 	repl := GenericReplicator{
 		ReplicatorConfig:        config,
 		Context:                 ctx,
-		DependencyMap:           make(map[string]map[string]interface{}),
 		ReplicateToList:         make(map[string]struct{}),
 		ReplicateToMatchingList: make(map[string]labels.Selector),
 	}
@@ -102,13 +100,9 @@ func (r *GenericReplicator) NamespaceAdded(ns *v1.Namespace) {
 
 	for sourceKey := range r.ReplicateToList {
 		logger := logger.WithField("resource", sourceKey)
-		obj, exist, err := r.Store.GetByKey(sourceKey)
-
+		obj, err := r.ObjectFromStore(sourceKey)
 		if err != nil {
 			log.WithError(err).Error("error fetching object from store")
-			continue
-		} else if !exist {
-			log.Warn("object not found in store")
 			continue
 		}
 
@@ -127,12 +121,9 @@ func (r *GenericReplicator) NamespaceAdded(ns *v1.Namespace) {
 	for sourceKey, selector := range r.ReplicateToMatchingList {
 		logger := logger.WithField("resource", sourceKey)
 
-		obj, exists, err := r.Store.GetByKey(sourceKey)
+		obj, err := r.ObjectFromStore(sourceKey)
 		if err != nil {
 			log.WithError(err).Error("error fetching object from store")
-			continue
-		} else if !exists {
-			log.Warn("object not found in store")
 			continue
 		}
 
@@ -163,12 +154,9 @@ func (r *GenericReplicator) NamespaceUpdated(nsOld *v1.Namespace, nsNew *v1.Name
 		// check 'replicate-to-matching' resources against new labels
 		for sourceKey, selector := range r.ReplicateToMatchingList {
 			if selector.Matches(oldLabelSet) && !selector.Matches(newLabelSet) {
-				obj, exists, err := r.Store.GetByKey(sourceKey)
+				obj, err := r.ObjectFromStore(sourceKey)
 				if err != nil {
 					log.WithError(err).Error("error fetching object from store")
-					continue
-				} else if !exists {
-					log.Warn("object not found in store")
 					continue
 				}
 				// delete resource from the updated namespace
@@ -191,13 +179,6 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 
 	if IsManagedBy(MustGetObject(objectMeta)) {
 		return
-	}
-
-	if replicas, ok := r.DependencyMap[sourceKey]; ok {
-		logger.Debugf("objectMeta %s has %d dependents", sourceKey, len(replicas))
-		if err := r.updateDependents(obj, replicas); err != nil {
-			logger.WithError(err).Error("failed to update cache")
-		}
 	}
 
 	annotations := objectMeta.GetAnnotations()
@@ -325,29 +306,18 @@ func (r *GenericReplicator) getNamespacesToReplicate(myNs string, patterns strin
 	return replicateTo
 }
 
-// updateDependents updates all dependent resources that were replicated to
-func (r *GenericReplicator) updateDependents(obj interface{}, dependents map[string]interface{}) error {
-	cacheKey := MustGetKey(obj)
-	logger := log.WithField("kind", r.Kind).WithField("source", cacheKey)
-
-	for dependentKey := range dependents {
-		logger.Infof("updating dependent %s %s -> %s", r.Kind, cacheKey, dependentKey)
-
-		targetObject, exists, err := r.Store.GetByKey(dependentKey)
-		if err != nil {
-			logger.Debugf("could not get dependent %s %s: %s", r.Kind, dependentKey, err)
-			continue
-		} else if !exists {
-			logger.Debugf("could not get dependent %s %s: does not exist", r.Kind, dependentKey)
-			continue
-		}
-
-		if err := r.UpdateFuncs.ReplicateDataFrom(obj, targetObject); err != nil {
-			return errors.WithStack(err)
-		}
+// ObjectFromStore gets object from store cache
+func (r *GenericReplicator) ObjectFromStore(key string) (interface{}, error) {
+	obj, exists, err := r.Store.GetByKey(key)
+	if err != nil {
+		return nil, errors.Errorf("could not get %s %s: %s", r.Kind, key, err)
 	}
 
-	return nil
+	if !exists {
+		return nil, errors.Errorf("could not get %s %s: does not exist", r.Kind, key)
+	}
+
+	return obj, nil
 }
 
 // ResourceDeleted watches for the deletion of resources
@@ -434,12 +404,9 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 		return
 	}
 	targetLocation := fmt.Sprintf("%s/%s", namespace.Name, objMeta.GetName())
-	targetResource, exist, err := r.Store.GetByKey(targetLocation)
+	targetResource, err := r.ObjectFromStore(targetLocation)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not get objectMeta %s: %+v", targetLocation, err)
-		return
-	}
-	if !exist {
 		return
 	}
 
@@ -447,4 +414,5 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 	if err := r.UpdateFuncs.DeleteReplicatedResource(targetResource); err != nil {
 		logger.WithError(err).Errorf("Could not delete resource %s: %+v", targetLocation, err)
 	}
+	r.Store.Delete(source)
 }
