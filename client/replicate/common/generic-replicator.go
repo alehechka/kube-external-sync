@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -71,7 +72,7 @@ func NewGenericReplicator(ctx context.Context, config ReplicatorConfig) *Generic
 		config.ResyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    repl.ResourceAdded,
-			UpdateFunc: func(old interface{}, new interface{}) { repl.ResourceAdded(new) },
+			UpdateFunc: func(_, new interface{}) { repl.ResourceAdded(new) },
 			DeleteFunc: repl.ResourceDeleted,
 		},
 	)
@@ -149,8 +150,37 @@ func (r *GenericReplicator) NamespaceAdded(ns *v1.Namespace) {
 // the namespace no longer qualifies for. Then it attempts to replicate resources into the updated ns based
 // on the updated set of labels
 func (r *GenericReplicator) NamespaceUpdated(nsOld *v1.Namespace, nsNew *v1.Namespace) {
-	logger := log.WithField("kind", r.Kind).WithField("previous", nsOld.Name).WithField("new", nsNew.Name)
-	logger.Info("NamespaceUpdated")
+	logger := log.WithField("kind", r.Kind).WithField("target", nsNew.Name)
+	// check if labels changed
+	if reflect.DeepEqual(nsNew.Labels, nsOld.Labels) {
+		logger.Debug("labels did not change")
+		return
+	} else {
+		logger.Infof("labels of namespace %s changed, attempting to delete %ses that no longer match", nsNew.Name, strings.TrimSuffix(r.Kind, "e"))
+		// delete any resources where namespace labels no longer match
+		var newLabelSet labels.Set = nsNew.Labels
+		var oldLabelSet labels.Set = nsOld.Labels
+		// check 'replicate-to-matching' resources against new labels
+		for sourceKey, selector := range r.ReplicateToMatchingList {
+			if selector.Matches(oldLabelSet) && !selector.Matches(newLabelSet) {
+				obj, exists, err := r.Store.GetByKey(sourceKey)
+				if err != nil {
+					log.WithError(err).Error("error fetching object from store")
+					continue
+				} else if !exists {
+					log.Warn("object not found in store")
+					continue
+				}
+				// delete resource from the updated namespace
+				logger.Infof("removed %s %s from %s", r.Kind, sourceKey, nsNew.Name)
+				r.DeleteResourceInNamespaces(obj, &v1.NamespaceList{Items: []v1.Namespace{*nsNew}})
+			}
+		}
+
+		// replicate resources to updated ns
+		logger.Infof("labels of namespace %s changed, attempting to replicate %ses", nsNew.Name, strings.TrimSuffix(r.Kind, "e"))
+		r.NamespaceAdded(nsNew)
+	}
 }
 
 // ResourceAdded checks resources with ReplicateTo or ReplicateFromAnnotation annotation

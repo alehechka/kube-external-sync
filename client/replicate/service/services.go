@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alehechka/kube-external-sync/client/replicate/common"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,24 +51,82 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 	logger := log.
 		WithField("kind", r.Kind).
 		WithField("source", common.MustGetKey(source)).
-		WithField("tartget", common.MustGetKey(target))
+		WithField("target", common.MustGetKey(target))
 
-	logger.Infof("ReplicateDataFrom")
+	if !common.IsManagedBy(target.ObjectMeta) {
+		logger.Debugf("target is not managed and will not be synced")
+		return nil
+	}
 
-	return nil
+	targetVersion, ok := target.Annotations[common.ReplicatedFromVersionAnnotation]
+	sourceVersion := source.ResourceVersion
+
+	if ok && targetVersion == sourceVersion {
+		logger.Debugf("target is already up-to-date")
+		return nil
+	}
+
+	prepared := prepareExternalNameService(target.Namespace, source)
+	service, err := r.Client.CoreV1().Services(target.Namespace).Update(r.Context, prepared, metav1.UpdateOptions{})
+	if err != nil {
+		err = errors.Wrapf(err, "Failed updating target %s", common.MustGetKey(prepared))
+	} else if err = r.Store.Update(service); err != nil {
+		err = errors.Wrapf(err, "Failed to update cache for %s: %v", common.MustGetKey(prepared), err)
+	}
+	return err
 }
 
 // ReplicateObjectTo copies the whole object to target namespace
-func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, target *v1.Namespace) error {
+func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v1.Namespace) error {
 	source := sourceObj.(*v1.Service)
-	targetLocation := fmt.Sprintf("%s/%s", target.Name, source.Name)
+	targetLocation := fmt.Sprintf("%s/%s", targetNamespace.Name, source.Name)
 
-	logger := log.
-		WithField("kind", r.Kind).
-		WithField("source", common.MustGetKey(source)).
-		WithField("target", targetLocation)
+	targetResource, exists, err := r.Store.GetByKey(targetLocation)
+	if err != nil {
+		return errors.Wrapf(err, "Could not get %s from cache!", targetLocation)
+	}
 
-	logger.Infof("ReplicateObjectTo")
+	if exists {
+		return r.ReplicateDataFrom(source, (targetResource).(*v1.Service))
+	}
 
-	return nil
+	prepared := prepareExternalNameService(targetNamespace.Name, source)
+	service, err := r.Client.CoreV1().Services(targetNamespace.Name).Create(r.Context, prepared, metav1.CreateOptions{})
+	if err != nil {
+		err = errors.Wrapf(err, "Failed creating target %s", common.MustGetKey(prepared))
+	} else if err = r.Store.Update(service); err != nil {
+		err = errors.Wrapf(err, "Failed to update cache for %s: %v", common.MustGetKey(prepared), err)
+	}
+	return err
+}
+
+func prepareExternalNameService(namespace string, source *v1.Service) *v1.Service {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            source.Name,
+			Namespace:       namespace,
+			Labels:          common.PrepareLabels(source.ObjectMeta),
+			Annotations:     common.PrepareAnnotations(source.ObjectMeta),
+			OwnerReferences: common.PrepareOwnerReferences(source.ObjectMeta),
+		},
+		Spec: v1.ServiceSpec{
+			Type:         v1.ServiceTypeExternalName,
+			ExternalName: prepareExternalName(source.Namespace, source),
+			Ports:        source.Spec.Ports,
+		},
+	}
+}
+
+func prepareExternalName(namespace string, source *v1.Service) string {
+	return fmt.Sprintf("%s.%s.%s", source.Name, namespace, getExternalNameSuffix(source))
+}
+
+func getExternalNameSuffix(source *v1.Service) string {
+	if suffix, ok := source.Annotations[common.ExternalNameSuffix]; ok {
+		if _, ok := common.ExternalNameOptions[suffix]; ok {
+			return suffix
+		}
+	}
+
+	return common.DefaultExternalNameSuffix
 }
