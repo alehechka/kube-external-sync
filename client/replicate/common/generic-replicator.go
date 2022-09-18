@@ -224,14 +224,12 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 		}
 
 		r.ReplicateToMatchingList[sourceKey] = namespaceSelector
-
 		if err := r.replicateResourceToMatchingNamespacesByLabel(obj, namespaceSelector); err != nil {
 			logger.WithError(err).Error("error while replicating by label selector")
 		}
 	} else {
 		delete(r.ReplicateToMatchingList, sourceKey)
 	}
-
 }
 
 // replicateResourceToMatchingNamespaces replicates resources with ReplicateTo annotation
@@ -416,12 +414,12 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 		return
 	}
 	targetLocation := fmt.Sprintf("%s/%s", namespace.Name, objMeta.GetName())
-	targetResource, exists, err := r.Store.GetByKey(targetLocation)
+	targetResource, exist, err := r.Store.GetByKey(targetLocation)
 	if err != nil {
 		logger.WithError(err).Errorf("Could not get objectMeta %s: %+v", targetLocation, err)
 		return
 	}
-	if !exists {
+	if !exist {
 		return
 	}
 	if err := r.UpdateFuncs.DeleteReplicatedResource(targetResource); err != nil {

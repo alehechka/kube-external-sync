@@ -36,8 +36,9 @@ func NewReplicator(ctx context.Context, client kubernetes.Interface, resyncPerio
 		}),
 	}
 	repl.UpdateFuncs = common.UpdateFuncs{
-		ReplicateDataFrom: repl.ReplicateDataFrom,
-		ReplicateObjectTo: repl.ReplicateObjectTo,
+		ReplicateDataFrom:        repl.ReplicateDataFrom,
+		ReplicateObjectTo:        repl.ReplicateObjectTo,
+		DeleteReplicatedResource: repl.DeleteReplicatedResource,
 	}
 
 	return &repl
@@ -98,6 +99,12 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 		err = errors.Wrapf(err, "Failed to update cache for %s: %v", common.MustGetKey(prepared), err)
 	}
 	return err
+}
+
+// DeleteReplicatedResource deletes a resource replicated by ReplicateTo annotation
+func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error {
+	service := targetResource.(*v1.Service)
+	return r.Client.CoreV1().Services(service.Namespace).Delete(r.Context, service.Name, metav1.DeleteOptions{})
 }
 
 func prepareExternalNameService(namespace string, source *v1.Service) *v1.Service {
