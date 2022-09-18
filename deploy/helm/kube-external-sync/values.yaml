@@ -34,6 +34,8 @@ deployment:
     LOG_LEVEL: 'info'
     # Log format (plain, json)
     LOG_FORMAT: 'plain'
+    # resynchronization period
+    RESYNC_PERIOD: '30m'
 
 resources: {}
   # requests:
