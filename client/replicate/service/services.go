@@ -80,15 +80,15 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 // ReplicateObjectTo copies the whole object to target namespace
 func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v1.Namespace) error {
 	source := sourceObj.(*v1.Service)
+	sourceKey := common.MustGetKey(source)
 	targetLocation := fmt.Sprintf("%s/%s", targetNamespace.Name, source.Name)
 
-	targetResource, exists, err := r.Store.GetByKey(targetLocation)
-	if err != nil {
-		return errors.Wrapf(err, "Could not get %s from cache!", targetLocation)
-	}
+	logger := log.WithField("source", sourceKey).WithField("target", targetLocation).WithField("kind", r.Kind)
+	logger.Infof("Replicating %s to %s", sourceKey, targetNamespace.Name)
 
-	if exists {
-		return r.ReplicateDataFrom(source, (targetResource).(*v1.Service))
+	targetResource, err := r.Client.CoreV1().Services(targetNamespace.Name).Get(r.Context, source.Name, metav1.GetOptions{})
+	if err == nil && targetResource != nil {
+		return r.ReplicateDataFrom(source, targetResource)
 	}
 
 	prepared := prepareExternalNameService(targetNamespace.Name, source)
@@ -104,6 +104,13 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 // DeleteReplicatedResource deletes a resource replicated by ReplicateTo annotation
 func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error {
 	service := targetResource.(*v1.Service)
+
+	if !common.IsManagedBy(service) {
+		log.WithField("kind", r.Kind).WithField("target", common.MustGetKey(service)).
+			Debugf("target is not managed and will not be deleted")
+		return nil
+	}
+
 	return r.Client.CoreV1().Services(service.Namespace).Delete(r.Context, service.Name, metav1.DeleteOptions{})
 }
 
@@ -129,10 +136,8 @@ func prepareExternalName(namespace string, source *v1.Service) string {
 }
 
 func getExternalNameSuffix(source *v1.Service) string {
-	if suffix, ok := source.Annotations[common.ExternalNameSuffix]; ok {
-		if _, ok := common.ExternalNameOptions[suffix]; ok {
-			return suffix
-		}
+	if suffix, ok := source.Annotations[common.ExternalNameSuffix]; ok && len(suffix) > 0 {
+		return suffix
 	}
 
 	return common.DefaultExternalNameSuffix

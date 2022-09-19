@@ -3,9 +3,11 @@ package ingress
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/alehechka/kube-external-sync/client/replicate/common"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -36,8 +38,9 @@ func NewReplicator(ctx context.Context, client kubernetes.Interface, resyncPerio
 		}),
 	}
 	repl.UpdateFuncs = common.UpdateFuncs{
-		ReplicateDataFrom: repl.ReplicateDataFrom,
-		ReplicateObjectTo: repl.ReplicateObjectTo,
+		ReplicateDataFrom:        repl.ReplicateDataFrom,
+		ReplicateObjectTo:        repl.ReplicateObjectTo,
+		DeleteReplicatedResource: repl.DeleteReplicatedResource,
 	}
 
 	return &repl
@@ -51,24 +54,129 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 	logger := log.
 		WithField("kind", r.Kind).
 		WithField("source", common.MustGetKey(source)).
-		WithField("tartget", common.MustGetKey(target))
+		WithField("target", common.MustGetKey(target))
 
-	logger.Infof("ReplicateDataFrom")
+	if !common.IsManagedBy(target) {
+		logger.Debugf("target is not managed and will not be synced")
+		return nil
+	}
 
-	return nil
+	targetVersion, ok := target.Annotations[common.ReplicatedFromVersionAnnotation]
+	sourceVersion := source.ResourceVersion
+
+	if ok && targetVersion == sourceVersion {
+		logger.Debugf("target is already up-to-date")
+		return nil
+	}
+
+	prepared := prepareIngress(target.Namespace, source)
+	service, err := r.Client.NetworkingV1().Ingresses(target.Namespace).Update(r.Context, prepared, metav1.UpdateOptions{})
+	if err != nil {
+		err = errors.Wrapf(err, "Failed updating target %s", common.MustGetKey(prepared))
+	} else if err = r.Store.Update(service); err != nil {
+		err = errors.Wrapf(err, "Failed to update cache for %s: %v", common.MustGetKey(prepared), err)
+	}
+	return err
 }
 
 // ReplicateObjectTo copies the whole object to target namespace
-func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, target *v1.Namespace) error {
+func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v1.Namespace) error {
 	source := sourceObj.(*networkingv1.Ingress)
-	targetLocation := fmt.Sprintf("%s/%s", target.Name, source.Name)
+	sourceKey := common.MustGetKey(source)
+	targetLocation := fmt.Sprintf("%s/%s", targetNamespace.Name, source.Name)
 
-	logger := log.
-		WithField("kind", r.Kind).
-		WithField("source", common.MustGetKey(source)).
-		WithField("target", targetLocation)
+	logger := log.WithField("source", sourceKey).WithField("target", targetLocation).WithField("kind", r.Kind)
+	logger.Infof("Replicating %s to %s", sourceKey, targetNamespace.Name)
 
-	logger.Infof("ReplicateObjectTo")
+	targetResource, err := r.Client.NetworkingV1().Ingresses(targetNamespace.Name).Get(r.Context, source.Name, metav1.GetOptions{})
+	if err == nil && targetResource != nil {
+		return r.ReplicateDataFrom(source, targetResource)
+	}
 
-	return nil
+	prepared := prepareIngress(targetNamespace.Name, source)
+	service, err := r.Client.NetworkingV1().Ingresses(targetNamespace.Name).Create(r.Context, prepared, metav1.CreateOptions{})
+	if err != nil {
+		err = errors.Wrapf(err, "Failed creating target %s", common.MustGetKey(prepared))
+	} else if err = r.Store.Update(service); err != nil {
+		err = errors.Wrapf(err, "Failed to update cache for %s: %v", common.MustGetKey(prepared), err)
+	}
+	return err
+}
+
+// DeleteReplicatedResource deletes a resource replicated by ReplicateTo annotation
+func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error {
+	ingress := targetResource.(*networkingv1.Ingress)
+
+	if !common.IsManagedBy(ingress) {
+		log.WithField("kind", r.Kind).WithField("target", common.MustGetKey(ingress)).
+			Debugf("target is not managed and will not be deleted")
+		return nil
+	}
+
+	return r.Client.NetworkingV1().Ingresses(ingress.Namespace).Delete(r.Context, ingress.Name, metav1.DeleteOptions{})
+}
+
+func prepareIngress(namespace string, source *networkingv1.Ingress) *networkingv1.Ingress {
+	return &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            source.Name,
+			Namespace:       namespace,
+			Labels:          common.PrepareLabels(source.ObjectMeta),
+			Annotations:     common.PrepareAnnotations(source.ObjectMeta),
+			OwnerReferences: common.PrepareOwnerReferences(source.ObjectMeta),
+		},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: source.Spec.IngressClassName,
+			DefaultBackend:   source.Spec.DefaultBackend,
+			TLS:              prepareTLS(namespace, source),
+			Rules:            prepareRules(namespace, source),
+		},
+	}
+}
+
+func prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []networkingv1.IngressTLS) {
+	annotations := source.GetAnnotations()
+
+	if tld, ok := annotations[common.TopLevelDomain]; ok {
+		return []networkingv1.IngressTLS{{
+			SecretName: annotations[common.TLDSecretName],
+			Hosts:      []string{prepareTLD(namespace, tld)},
+		}}
+	}
+
+	for _, tls := range source.Spec.TLS {
+		entry := networkingv1.IngressTLS{SecretName: tls.SecretName}
+		for _, host := range tls.Hosts {
+			entry.Hosts = append(entry.Hosts, prepareTLD(namespace, host))
+		}
+		ingressTLS = append(ingressTLS, entry)
+	}
+
+	return
+}
+
+func prepareRules(namespace string, source *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
+	tld, ok := source.GetAnnotations()[common.TopLevelDomain]
+	prepared := prepareTLD(namespace, tld)
+
+	for _, rule := range source.Spec.Rules {
+		host := prepared
+		if !ok {
+			host = prepareTLD(namespace, rule.Host)
+		}
+
+		rules = append(rules, networkingv1.IngressRule{
+			Host:             host,
+			IngressRuleValue: rule.IngressRuleValue,
+		})
+	}
+
+	return
+}
+
+func prepareTLD(namespace, tld string) string {
+	subdomains := strings.Split(tld, ".")
+	subdomains[0] = namespace
+
+	return strings.Join(subdomains, ".")
 }
