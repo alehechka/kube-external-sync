@@ -393,28 +393,30 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 }
 
 func (r *GenericReplicator) deleteOldReplicateToResources(oldObj, newObj metav1.Object) {
+	logger := log.WithField("source", MustGetKey(newObj)).WithField("kind", r.Kind)
+
 	oldPatterns, oldReplicateTo := oldObj.GetAnnotations()[ReplicateTo]
 	if !oldReplicateTo {
-		log.Debug("old resource does not have a replicate-to annotation")
+		logger.Debug("old resource does not have a replicate-to annotation")
 		return
 	}
 
 	oldNamespaces, err := r.ListFilteredNamespaces(oldObj.GetNamespace(), oldPatterns)
 	if err != nil || len(oldNamespaces) == 0 {
-		log.Debug("old resource does not replicate to any current namespaces")
+		logger.Debug("old resource does not replicate to any current namespaces")
 		return
 	}
 
 	newPatterns, newReplicateTo := newObj.GetAnnotations()[ReplicateTo]
 	if !newReplicateTo {
-		log.Debug("new resource does not have a replicate-to annotation")
+		logger.Debug("new resource does not have a replicate-to annotation")
 		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
 	newNamespaces, err := r.ListFilteredNamespaces(newObj.GetNamespace(), newPatterns)
 	if err != nil || len(newNamespaces) == 0 {
-		log.Debug("new resource not replicate to any current namespaces")
+		logger.Debug("new resource not replicate to any current namespaces")
 		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
@@ -430,12 +432,52 @@ Outer:
 		removedNamespaces = append(removedNamespaces, oldNamespace)
 	}
 
-	log.Debugf("deleting %d resources", len(removedNamespaces))
+	logger.Debugf("deleting %d resources", len(removedNamespaces))
 	r.DeleteResourceInNamespaces(oldObj, removedNamespaces)
 }
 
-func (r *GenericReplicator) deleteOldReplicateToMatchingResources(old, new interface{}) {
+func (r *GenericReplicator) deleteOldReplicateToMatchingResources(oldObj, newObj metav1.Object) {
+	logger := log.WithField("source", MustGetKey(newObj)).WithField("kind", r.Kind)
 
+	oldLabelSelector, oldReplicateToMatching := oldObj.GetAnnotations()[ReplicateToMatching]
+	if !oldReplicateToMatching {
+		logger.Debug("old resource does not have a replicate-to-matching annotation")
+		return
+	}
+
+	oldNamespaces, err := r.ListLabelSelectedNamespaces(oldLabelSelector)
+	if err != nil || len(oldNamespaces) == 0 {
+		logger.Debug("old resource does not replicate to any current label selected namespaces")
+		return
+	}
+
+	newLabelSelector, newReplicateToMatching := newObj.GetAnnotations()[ReplicateToMatching]
+	if !newReplicateToMatching {
+		logger.Debug("new resource does not have a replicate-to-matching annotation")
+		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		return
+	}
+
+	newNamespaces, err := r.ListLabelSelectedNamespaces(newLabelSelector)
+	if err != nil || len(newNamespaces) == 0 {
+		logger.Debug("new resource not replicate to any current label selected namespaces")
+		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		return
+	}
+
+	var removedNamespaces []v1.Namespace
+Outer:
+	for _, oldNamespace := range oldNamespaces {
+		for _, newNamespace := range newNamespaces {
+			if oldNamespace.Name == newNamespace.Name {
+				continue Outer
+			}
+		}
+		removedNamespaces = append(removedNamespaces, oldNamespace)
+	}
+
+	logger.Debugf("deleting %d resources", len(removedNamespaces))
+	r.DeleteResourceInNamespaces(oldObj, removedNamespaces)
 }
 
 // ListNamespaces is a simple wrapper for listing namespaces
