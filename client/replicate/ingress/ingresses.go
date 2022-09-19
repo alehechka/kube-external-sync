@@ -82,15 +82,15 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 // ReplicateObjectTo copies the whole object to target namespace
 func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v1.Namespace) error {
 	source := sourceObj.(*networkingv1.Ingress)
+	sourceKey := common.MustGetKey(source)
 	targetLocation := fmt.Sprintf("%s/%s", targetNamespace.Name, source.Name)
 
-	targetResource, exists, err := r.Store.GetByKey(targetLocation)
-	if err != nil {
-		return errors.Wrapf(err, "Could not get %s from cache!", targetLocation)
-	}
+	logger := log.WithField("source", sourceKey).WithField("target", targetLocation).WithField("kind", r.Kind)
+	logger.Infof("Replicating %s to %s", sourceKey, targetNamespace.Name)
 
-	if exists {
-		return r.ReplicateDataFrom(source, (targetResource).(*networkingv1.Ingress))
+	targetResource, err := r.Client.NetworkingV1().Ingresses(targetNamespace.Name).Get(r.Context, source.Name, metav1.GetOptions{})
+	if err == nil && targetResource != nil {
+		return r.ReplicateDataFrom(source, targetResource)
 	}
 
 	prepared := prepareIngress(targetNamespace.Name, source)

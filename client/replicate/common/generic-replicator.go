@@ -229,9 +229,6 @@ func (r *GenericReplicator) ResourceUpdated(old interface{}, new interface{}) {
 // replicateResourceToMatchingNamespaces replicates resources with ReplicateTo annotation
 func (r *GenericReplicator) replicateResourceToMatchingNamespaces(obj interface{}, patterns string, namespaceList []v1.Namespace) error {
 	cacheKey := MustGetKey(obj)
-	logger := log.WithField("kind", r.Kind).WithField("source", cacheKey).WithField("patterns", patterns)
-
-	logger.Infof("%s %s to be replicated", r.Kind, cacheKey)
 
 	replicateTo := r.getFilteredNamespaces(MustGetObject(obj).GetNamespace(), patterns, namespaceList)
 
@@ -256,8 +253,6 @@ func (r *GenericReplicator) replicateResourceToNamespaces(obj interface{}, targe
 			))
 		} else {
 			replicatedTo = append(replicatedTo, namespace)
-			logger := log.WithField("source", cacheKey)
-			logger.Infof("Replicated %s to: %v", cacheKey, namespace.Name)
 		}
 	}
 
