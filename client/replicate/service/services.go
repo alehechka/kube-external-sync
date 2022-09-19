@@ -104,6 +104,13 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 // DeleteReplicatedResource deletes a resource replicated by ReplicateTo annotation
 func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error {
 	service := targetResource.(*v1.Service)
+
+	if !common.IsManagedBy(service) {
+		log.WithField("kind", r.Kind).WithField("target", common.MustGetKey(service)).
+			Debugf("target is not managed and will not be deleted")
+		return nil
+	}
+
 	return r.Client.CoreV1().Services(service.Namespace).Delete(r.Context, service.Name, metav1.DeleteOptions{})
 }
 

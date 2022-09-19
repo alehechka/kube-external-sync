@@ -106,6 +106,13 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 // DeleteReplicatedResource deletes a resource replicated by ReplicateTo annotation
 func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error {
 	ingress := targetResource.(*networkingv1.Ingress)
+
+	if !common.IsManagedBy(ingress) {
+		log.WithField("kind", r.Kind).WithField("target", common.MustGetKey(ingress)).
+			Debugf("target is not managed and will not be deleted")
+		return nil
+	}
+
 	return r.Client.NetworkingV1().Ingresses(ingress.Namespace).Delete(r.Context, ingress.Name, metav1.DeleteOptions{})
 }
 
