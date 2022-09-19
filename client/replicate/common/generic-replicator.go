@@ -170,7 +170,7 @@ func (r *GenericReplicator) NamespaceUpdated(nsOld *v1.Namespace, nsNew *v1.Name
 			}
 			// delete resource from the updated namespace
 			logger.Infof("removed %s %s from %s", r.Kind, sourceKey, nsNew.Name)
-			r.DeleteResourceInNamespaces(obj, []v1.Namespace{*nsNew})
+			r.deleteResourceInNamespaces(obj, []v1.Namespace{*nsNew})
 		}
 	}
 
@@ -242,6 +242,21 @@ func (r *GenericReplicator) ResourceUpdated(old interface{}, new interface{}) {
 	r.ResourceAdded(new)
 }
 
+// ResourceDeleted watches for the deletion of resources
+func (r *GenericReplicator) ResourceDeleted(source interface{}) {
+	if IsManagedBy(MustGetObject(source)) {
+		return
+	}
+
+	sourceKey := MustGetKey(source)
+	logger := log.WithField("kind", r.Kind).WithField("source", sourceKey)
+	logger.Debugf("Deleting dependents of %s %s", r.Kind, sourceKey)
+
+	r.resourceDeletedReplicateTo(source)
+
+	delete(r.ReplicateToList, sourceKey)
+}
+
 // replicateResourceToMatchingNamespaces replicates resources with ReplicateTo annotation
 func (r *GenericReplicator) replicateResourceToMatchingNamespaces(obj interface{}, patterns string, namespaceList []v1.Namespace) error {
 	cacheKey := MustGetKey(obj)
@@ -307,37 +322,22 @@ func (r *GenericReplicator) ObjectFromStore(key string) (interface{}, error) {
 	return obj, nil
 }
 
-// ResourceDeleted watches for the deletion of resources
-func (r *GenericReplicator) ResourceDeleted(source interface{}) {
-	if IsManagedBy(MustGetObject(source)) {
-		return
-	}
-
-	sourceKey := MustGetKey(source)
-	logger := log.WithField("kind", r.Kind).WithField("source", sourceKey)
-	logger.Debugf("Deleting dependents of %s %s", r.Kind, sourceKey)
-
-	r.ResourceDeletedReplicateTo(source)
-
-	delete(r.ReplicateToList, sourceKey)
-}
-
 // ResourceDeletedReplicateTo deletes dependent resources that were replicated to
-func (r *GenericReplicator) ResourceDeletedReplicateTo(source interface{}) {
+func (r *GenericReplicator) resourceDeletedReplicateTo(source interface{}) {
 	sourceKey := MustGetKey(source)
 	logger := log.WithField("kind", r.Kind).WithField("source", sourceKey)
 
-	if err := r.DeleteFilteredNamespaceResources(source); err != nil {
+	if err := r.deleteFilteredNamespaceResources(source); err != nil {
 		logger.WithError(err).Errorf("Could not delete resources from filtered namespaces")
 	}
 
-	if err := r.DeletedLabelSelectedNamespaceResources(source); err != nil {
+	if err := r.deletedLabelSelectedNamespaceResources(source); err != nil {
 		logger.WithError(err).Errorf("Could not delete resources from label selected namespaces")
 	}
 }
 
 // DeleteFilteredNamespaceResources deletes resources from a filtered namespace list
-func (r *GenericReplicator) DeleteFilteredNamespaceResources(source interface{}) error {
+func (r *GenericReplicator) deleteFilteredNamespaceResources(source interface{}) error {
 	objMeta := MustGetObject(source)
 
 	patterns, replicateTo := objMeta.GetAnnotations()[ReplicateTo]
@@ -350,12 +350,12 @@ func (r *GenericReplicator) DeleteFilteredNamespaceResources(source interface{})
 		return errors.Wrapf(err, "Failed to list namespaces: %v", err)
 	}
 
-	r.DeleteResourceInNamespaces(source, namespaces)
+	r.deleteResourceInNamespaces(source, namespaces)
 	return nil
 }
 
 // DeletedLabelSelectedNamespaceResources deletes resources from label selected namespaces
-func (r *GenericReplicator) DeletedLabelSelectedNamespaceResources(source interface{}) error {
+func (r *GenericReplicator) deletedLabelSelectedNamespaceResources(source interface{}) error {
 	objMeta := MustGetObject(source)
 
 	namespaceSelectorString, replicateToMatching := objMeta.GetAnnotations()[ReplicateToMatching]
@@ -368,19 +368,19 @@ func (r *GenericReplicator) DeletedLabelSelectedNamespaceResources(source interf
 		return err
 	}
 
-	r.DeleteResourceInNamespaces(source, namespaces)
+	r.deleteResourceInNamespaces(source, namespaces)
 	return nil
 }
 
 // DeleteResourceInNamespaces deletes resources in a list of namespaces acquired by evaluating namespace labels
-func (r *GenericReplicator) DeleteResourceInNamespaces(source interface{}, namespaces []v1.Namespace) {
+func (r *GenericReplicator) deleteResourceInNamespaces(source interface{}, namespaces []v1.Namespace) {
 	for _, namespace := range namespaces {
-		r.DeleteResource(namespace, source)
+		r.deleteResource(namespace, source)
 	}
 }
 
 // DeleteResource deletes a single resource from the provided namespace
-func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interface{}) {
+func (r *GenericReplicator) deleteResource(namespace v1.Namespace, source interface{}) {
 	sourceKey := MustGetKey(source)
 	logger := log.WithField("kind", r.Kind).WithField("source", sourceKey)
 	objMeta := MustGetObject(source)
@@ -419,14 +419,14 @@ func (r *GenericReplicator) deleteOldReplicateToResources(oldObj, newObj metav1.
 	newPatterns, newReplicateTo := newObj.GetAnnotations()[ReplicateTo]
 	if !newReplicateTo {
 		logger.Debug("new resource does not have a replicate-to annotation")
-		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		r.deleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
 	newNamespaces, err := r.ListFilteredNamespaces(newObj.GetNamespace(), newPatterns)
 	if err != nil || len(newNamespaces) == 0 {
 		logger.Debug("new resource not replicate to any current namespaces")
-		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		r.deleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
@@ -442,7 +442,7 @@ Outer:
 	}
 
 	logger.Debugf("deleting %d resources", len(removedNamespaces))
-	r.DeleteResourceInNamespaces(oldObj, removedNamespaces)
+	r.deleteResourceInNamespaces(oldObj, removedNamespaces)
 }
 
 func (r *GenericReplicator) deleteOldReplicateToMatchingResources(oldObj, newObj metav1.Object) {
@@ -463,14 +463,14 @@ func (r *GenericReplicator) deleteOldReplicateToMatchingResources(oldObj, newObj
 	newLabelSelector, newReplicateToMatching := newObj.GetAnnotations()[ReplicateToMatching]
 	if !newReplicateToMatching {
 		logger.Debug("new resource does not have a replicate-to-matching annotation")
-		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		r.deleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
 	newNamespaces, err := r.ListLabelSelectedNamespaces(newLabelSelector)
 	if err != nil || len(newNamespaces) == 0 {
 		logger.Debug("new resource not replicate to any current label selected namespaces")
-		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
+		r.deleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
@@ -486,7 +486,7 @@ Outer:
 	}
 
 	logger.Debugf("deleting %d resources", len(removedNamespaces))
-	r.DeleteResourceInNamespaces(oldObj, removedNamespaces)
+	r.deleteResourceInNamespaces(oldObj, removedNamespaces)
 }
 
 // ListNamespaces is a simple wrapper for listing namespaces
