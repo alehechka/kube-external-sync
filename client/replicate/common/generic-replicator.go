@@ -177,7 +177,7 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 	sourceKey := MustGetKey(objectMeta)
 	logger := log.WithField("kind", r.Kind).WithField("resource", sourceKey)
 
-	if IsManagedBy(MustGetObject(objectMeta)) {
+	if IsManagedBy(objectMeta) {
 		return
 	}
 
@@ -215,12 +215,19 @@ func (r *GenericReplicator) ResourceAdded(obj interface{}) {
 
 // ResourceUpdated checks resources with ReplicateTo or ReplicateFromAnnotation annotation
 func (r *GenericReplicator) ResourceUpdated(old interface{}, new interface{}) {
-	oldAnnotations := MustGetObject(old).GetAnnotations()
-	newAnnotations := MustGetObject(new).GetAnnotations()
+	oldObj := MustGetObject(old)
+	newObj := MustGetObject(new)
+
+	if IsManagedBy(newObj) {
+		return
+	}
+
+	oldAnnotations := oldObj.GetAnnotations()
+	newAnnotations := newObj.GetAnnotations()
 
 	if !reflect.DeepEqual(oldAnnotations, newAnnotations) {
-		r.deleteOldReplicateToResources(old, new)
-		r.deleteOldReplicateToMatchingResources(old, new)
+		r.deleteOldReplicateToResources(oldObj, newObj)
+		r.deleteOldReplicateToMatchingResources(oldObj, newObj)
 	}
 
 	r.ResourceAdded(new)
@@ -383,33 +390,32 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 	if err := r.UpdateFuncs.DeleteReplicatedResource(targetResource); err != nil {
 		logger.WithError(err).Errorf("Could not delete resource %s: %+v", targetLocation, err)
 	}
-	r.Store.Delete(source)
 }
 
-func (r *GenericReplicator) deleteOldReplicateToResources(old, new interface{}) {
-	oldObj := MustGetObject(old)
-
+func (r *GenericReplicator) deleteOldReplicateToResources(oldObj, newObj metav1.Object) {
 	oldPatterns, oldReplicateTo := oldObj.GetAnnotations()[ReplicateTo]
 	if !oldReplicateTo {
+		log.Debug("old resource does not have a replicate-to annotation")
 		return
 	}
 
 	oldNamespaces, err := r.ListFilteredNamespaces(oldObj.GetNamespace(), oldPatterns)
 	if err != nil || len(oldNamespaces) == 0 {
+		log.Debug("old resource does not replicate to any current namespaces")
 		return
 	}
 
-	newObj := MustGetObject(new)
-
 	newPatterns, newReplicateTo := newObj.GetAnnotations()[ReplicateTo]
 	if !newReplicateTo {
-		r.DeleteResourceInNamespaces(old, oldNamespaces)
+		log.Debug("new resource does not have a replicate-to annotation")
+		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
 	newNamespaces, err := r.ListFilteredNamespaces(newObj.GetNamespace(), newPatterns)
 	if err != nil || len(newNamespaces) == 0 {
-		r.DeleteResourceInNamespaces(old, oldNamespaces)
+		log.Debug("new resource not replicate to any current namespaces")
+		r.DeleteResourceInNamespaces(oldObj, oldNamespaces)
 		return
 	}
 
@@ -417,7 +423,6 @@ func (r *GenericReplicator) deleteOldReplicateToResources(old, new interface{}) 
 Outer:
 	for _, oldNamespace := range oldNamespaces {
 		for _, newNamespace := range newNamespaces {
-			log.Debugf("%s == %s", oldNamespace.Name, newNamespace.Name)
 			if oldNamespace.Name == newNamespace.Name {
 				continue Outer
 			}
@@ -425,7 +430,8 @@ Outer:
 		removedNamespaces = append(removedNamespaces, oldNamespace)
 	}
 
-	r.DeleteResourceInNamespaces(old, removedNamespaces)
+	log.Debugf("deleting %d resources", len(removedNamespaces))
+	r.DeleteResourceInNamespaces(oldObj, removedNamespaces)
 }
 
 func (r *GenericReplicator) deleteOldReplicateToMatchingResources(old, new interface{}) {
