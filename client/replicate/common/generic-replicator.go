@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// ReplicatorConfig represents configuration for individual resource controllers
 type ReplicatorConfig struct {
 	Kind         string
 	Client       kubernetes.Interface
@@ -28,12 +29,14 @@ type ReplicatorConfig struct {
 	ObjType      runtime.Object
 }
 
+// UpdateFuncs stores the resource updater functions
 type UpdateFuncs struct {
 	ReplicateDataFrom        func(source interface{}, target interface{}) error
 	ReplicateObjectTo        func(source interface{}, target *v1.Namespace) error
 	DeleteReplicatedResource func(target interface{}) error
 }
 
+// GenericReplicator represents the top-level Replicator
 type GenericReplicator struct {
 	ReplicatorConfig
 	Store      cache.Store
@@ -83,10 +86,12 @@ func NewGenericReplicator(ctx context.Context, config ReplicatorConfig) *Generic
 	return &repl
 }
 
+// Synced reports whether or not the controller has been synced
 func (r *GenericReplicator) Synced() bool {
 	return r.Controller.HasSynced()
 }
 
+// Run starts the controller
 func (r *GenericReplicator) Run() {
 	log.WithField("kind", r.Kind).Infof("running %s controller", r.Kind)
 	r.Controller.Run(wait.NeverStop)
