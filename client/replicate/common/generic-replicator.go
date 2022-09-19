@@ -147,6 +147,10 @@ func (r *GenericReplicator) NamespaceAdded(ns *v1.Namespace) {
 func (r *GenericReplicator) NamespaceUpdated(nsOld *v1.Namespace, nsNew *v1.Namespace) {
 	logger := log.WithField("kind", r.Kind).WithField("target", nsNew.Name)
 
+	if nsNew.DeletionTimestamp != nil {
+		return
+	}
+
 	if reflect.DeepEqual(nsNew.Labels, nsOld.Labels) {
 		logger.Debug("labels did not change")
 		return
@@ -355,7 +359,7 @@ func (r *GenericReplicator) DeletedLabelSelectedNamespaceResources(source interf
 	objMeta := MustGetObject(source)
 
 	namespaceSelectorString, replicateToMatching := objMeta.GetAnnotations()[ReplicateToMatching]
-	if replicateToMatching {
+	if !replicateToMatching {
 		return nil
 	}
 
@@ -387,13 +391,13 @@ func (r *GenericReplicator) DeleteResource(namespace v1.Namespace, source interf
 	targetLocation := fmt.Sprintf("%s/%s", namespace.Name, objMeta.GetName())
 	targetResource, err := r.ObjectFromStore(targetLocation)
 	if err != nil {
-		logger.WithError(err).Errorf("Could not get objectMeta %s: %+v", targetLocation, err)
+		logger.WithError(err).Errorf("Could not get objectMeta %s: %v", targetLocation, err)
 		return
 	}
 
 	logger.Infof("Deleting %s: %s", r.Kind, targetLocation)
 	if err := r.UpdateFuncs.DeleteReplicatedResource(targetResource); err != nil {
-		logger.WithError(err).Errorf("Could not delete resource %s: %+v", targetLocation, err)
+		logger.WithError(err).Errorf("Could not delete resource %s: %v", targetLocation, err)
 	}
 }
 
