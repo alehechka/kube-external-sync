@@ -23,8 +23,6 @@ version: 0.0.0
 # It is recommended to use it with quotes.
 appVersion: 'latest'
 
-kubeVersion: '>=1.16'
-
 home: https://github.com/alehechka/kube-external-sync
 
 maintainers:
