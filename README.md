@@ -26,12 +26,12 @@ Replication of resources is triggered on the creation/modification of Namespaces
 
 | Annotation                                    | Example                          | Description                                                                                                                                      |
 | --------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `kube-external-sync.io/replicate-to`          | `my-namespace, feature-[.]*`     | A CSV list of namespaces names or regex patterns to replicate the resource to.                                                                   |
+| `kube-external-sync.io/replicate-to`          | `my-namespace, feature-[.]*`     | A CSV list of namespace names or regex patterns to replicate the resource to.                                                                    |
 | `kube-external-sync.io/replicate-to-matching` | `feature-branch,branch!=default` | A [label selector](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/) used to locate labeled namespaces to replicate to. |
 
 ### Example:
 
-The following Service will be replicated as an ExternalName Service to all Namespaces that their name match the `feature-[.]*` regex or include a label of the name `feature-branch` with any value.
+The following Service will be replicated as an ExternalName Service to all Namespaces that name match the `feature-[.]*` regex or include a label of the name `feature-branch` with any value.
 
 ```yaml
 apiVersion: v1
@@ -95,7 +95,7 @@ spec:
 
 ### Ingresses
 
-Ingresses are a little more complex because they typically include domain names and TLS rules that tell the load balancer where to send incoming traffic. To handle this, this controller will assume that the Namespace name correlates directly to the first subdomain of the host.
+Ingresses are a little more complex because they typically include TLS hosts and rules with hosts that tell the load balancer where to send incoming traffic. To handle this, the controller will assume that the Namespace name correlates directly to the first subdomain of the host.
 
 Example: Provided host is `my-app.example.com` and the new Namespace is `feature-coolnewthing`. By default, the controller will replace the first subdomain with the Namespace name, resulting in a new host of `feature-coolnewthing.example.com`.
 
@@ -160,11 +160,11 @@ spec:
 
 #### Annotations for any resource
 
-| Annotation                                    | Example | Description                                                                                                                                                                                                                           |
-| --------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kube-external-sync.io/strip-labels`          | `true`  | By default, all labels will be replicated. This annotation will strip all labels from the replicated resource. A `app.kubernetes.io/managed-by` label will always be applied to the replicated resource.                              |
-| `kube-external-sync.io/strip-annotations`     | `true`  | By default, all non-`replicate-to` annotations will be replicated. This annotation will strip all labels from the replicated resource. A few `kube-external-sync.io/*` annotations will always be applied to the replicated resource. |
-| `kube-external-sync.io/keep-owner-references` | `true`  | By default, no OwnerReference will be replicated. This annotation will replicate all OwnerReferences from the original.                                                                                                               |
+| Annotation                                    | Example | Description                                                                                                                                                                                                                                |
+| --------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kube-external-sync.io/strip-labels`          | `true`  | By default, all labels will be replicated. This annotation will strip all labels from the replicated resource. A `app.kubernetes.io/managed-by` label will always be applied to the replicated resource.                                   |
+| `kube-external-sync.io/strip-annotations`     | `true`  | By default, all non-`replicate-to` annotations will be replicated. This annotation will strip all annotations from the replicated resource. A few `kube-external-sync.io/*` annotations will always be applied to the replicated resource. |
+| `kube-external-sync.io/keep-owner-references` | `true`  | By default, no OwnerReferences will be replicated. This annotation will replicate all OwnerReferences from the original.                                                                                                                   |
 
 #### Annotations for Services
 
