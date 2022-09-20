@@ -12,8 +12,9 @@ import (
 type SyncConfig struct {
 	PodNamespace string
 
-	LivenessPort int
-	ResyncPeriod time.Duration
+	LivenessPort  int
+	ResyncPeriod  time.Duration
+	EnableTraefik bool
 
 	OutOfCluster bool
 	KubeConfig   string

@@ -32,9 +32,11 @@ spec:
             - name: LOG_FORMAT
               value: {{ .Values.deployment.env.LOG_FORMAT }}
             - name: LIVENESS_PORT
-              value: '{{ .Values.deployment.port }}'
+              value: {{ .Values.deployment.port | quote }}
             - name: RESYNC_PERIOD
               value: {{ .Values.deployment.env.RESYNC_PERIOD }}
+            - name: ENABLE_TRAEFIK
+              value: {{ .Values.traefik.enabled | quote }}
           ports:
             - name: health
               containerPort: {{ .Values.deployment.port }}

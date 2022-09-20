@@ -37,6 +37,9 @@ deployment:
     # resynchronization period
     RESYNC_PERIOD: '30m'
 
+traefik:
+  enabled: false
+
 resources: {}
   # requests:
   #   cpu: 0.1
