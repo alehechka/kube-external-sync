@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/generated/clientset/versioned"
 	"github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefik/v1alpha1"
+	"github.com/traefik/traefik/v2/pkg/types"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -128,7 +129,61 @@ func prepareIngressRoute(namespace string, source *v1alpha1.IngressRoute) *v1alp
 			OwnerReferences: common.PrepareOwnerReferences(source.ObjectMeta),
 		},
 		Spec: v1alpha1.IngressRouteSpec{
-			Routes: source.Spec.Routes,
+			EntryPoints: source.Spec.EntryPoints,
+			Routes:      prepareRoutes(namespace, source),
+			TLS:         prepareTLS(namespace, source),
 		},
 	}
+}
+
+func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1alpha1.Route) {
+	for _, route := range source.Spec.Routes {
+		newRoute := v1alpha1.Route{
+			Kind:        route.Kind,
+			Middlewares: route.Middlewares,
+			Services:    route.Services,
+			Priority:    route.Priority,
+		}
+
+		newRoute.Match = common.PrepareRouteMatch(namespace, route.Match)
+
+		routes = append(routes, newRoute)
+	}
+
+	return
+}
+
+func prepareTLS(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.TLS {
+	annotations := source.GetAnnotations()
+
+	if tld, ok := annotations[common.TopLevelDomain]; ok {
+		return &v1alpha1.TLS{
+			SecretName:   annotations[common.TLDSecretName],
+			Options:      source.Spec.TLS.Options,
+			Store:        source.Spec.TLS.Store,
+			CertResolver: source.Spec.TLS.CertResolver,
+			Domains: []types.Domain{{
+				Main: common.PrepareTLD(namespace, tld),
+			}},
+		}
+	}
+
+	return &v1alpha1.TLS{
+		SecretName:   source.Spec.TLS.SecretName,
+		Options:      source.Spec.TLS.Options,
+		Store:        source.Spec.TLS.Store,
+		CertResolver: source.Spec.TLS.CertResolver,
+		Domains:      prepareDomains(namespace, source),
+	}
+}
+
+func prepareDomains(namespace string, source *v1alpha1.IngressRoute) (domains []types.Domain) {
+	for _, domain := range source.Spec.TLS.Domains {
+		newDomain := types.Domain{Main: common.PrepareTLD(namespace, domain.Main)}
+		for _, san := range domain.SANs {
+			newDomain.SANs = append(newDomain.SANs, common.PrepareTLD(namespace, san))
+		}
+		domains = append(domains, newDomain)
+	}
+	return
 }
