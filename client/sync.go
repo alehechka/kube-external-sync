@@ -1,12 +1,8 @@
 package client
 
 import (
-	"context"
-
 	"github.com/alehechka/kube-external-sync/client/liveness"
 	"github.com/alehechka/kube-external-sync/client/replicate/common"
-	"github.com/alehechka/kube-external-sync/client/replicate/ingress"
-	"github.com/alehechka/kube-external-sync/client/replicate/service"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -14,18 +10,17 @@ import (
 func SyncExternals(config *SyncConfig) (err error) {
 	log.Debugf("Starting with following configuration: %#v", *config)
 
-	client, err := InitializeClient(config)
+	controller, err := NewController().Initialize(config)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	ctx := context.Background()
+	go controller.ServiceReplicator.Run()
+	go controller.IngressReplicator.Run()
 
-	serviceRepl := service.NewReplicator(ctx, client, config.ResyncPeriod)
-	ingressRepl := ingress.NewReplicator(ctx, client, config.ResyncPeriod)
+	if config.EnableTraefik {
+		go controller.TraefikIngressRouteReplicator.Run()
+	}
 
-	go serviceRepl.Run()
-	go ingressRepl.Run()
-
-	return liveness.Serve(config.LivenessPort, []common.Replicator{serviceRepl, ingressRepl})
+	return liveness.Serve(config.LivenessPort, []common.Replicator{controller.ServiceReplicator, controller.IngressReplicator, controller.TraefikIngressRouteReplicator})
 }

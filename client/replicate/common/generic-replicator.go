@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/generated/clientset/versioned"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,12 +22,13 @@ import (
 
 // ReplicatorConfig represents configuration for individual resource controllers
 type ReplicatorConfig struct {
-	Kind         string
-	Client       kubernetes.Interface
-	ResyncPeriod time.Duration
-	ListFunc     cache.ListFunc
-	WatchFunc    cache.WatchFunc
-	ObjType      runtime.Object
+	Kind          string
+	Client        kubernetes.Interface
+	TraefikClient *versioned.Clientset
+	ResyncPeriod  time.Duration
+	ListFunc      cache.ListFunc
+	WatchFunc     cache.WatchFunc
+	ObjType       runtime.Object
 }
 
 // UpdateFuncs stores the resource updater functions
