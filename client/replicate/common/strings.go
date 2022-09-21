@@ -67,3 +67,32 @@ func MatchStrictRegex(pattern, str string) (bool, error) {
 func CompileStrictRegex(pattern string) (*regexp.Regexp, error) {
 	return regexp.Compile(BuildStrictRegex(pattern))
 }
+
+func PrepareTLD(namespace, tld string) string {
+	subdomains := strings.Split(tld, ".")
+	subdomains[0] = namespace
+
+	return strings.Join(subdomains, ".")
+}
+
+func PrepareRouteMatch(namespace, match string) string {
+	if !strings.Contains(match, "Host") {
+		return match
+	}
+
+	parts := strings.Split(match, "`")
+
+	isHost := false
+	for index, part := range parts {
+		if isHost {
+			parts[index] = PrepareTLD(namespace, part)
+			isHost = false
+			continue
+		}
+		if index%2 == 0 && strings.Contains(part, "Host") {
+			isHost = true
+		}
+	}
+
+	return strings.Join(parts, "`")
+}
