@@ -13,13 +13,14 @@ import (
 )
 
 const (
-	logLevelFlag     = "log-level"
-	logFormatFlag    = "log-format"
-	outOfClusterFlag = "out-of-cluster"
-	kubeconfigFlag   = "kubeconfig"
-	podNamespaceFlag = "pod-namespace"
-	livenessPortFlag = "liveness-port"
-	resyncPeriodFlag = "resync-period"
+	logLevelFlag      = "log-level"
+	logFormatFlag     = "log-format"
+	outOfClusterFlag  = "out-of-cluster"
+	kubeconfigFlag    = "kubeconfig"
+	podNamespaceFlag  = "pod-namespace"
+	livenessPortFlag  = "liveness-port"
+	resyncPeriodFlag  = "resync-period"
+	enableTraefikFlag = "enable-traefik"
 )
 
 func kubeconfig() *cli.StringFlag {
@@ -60,6 +61,11 @@ var startFlags = []cli.Flag{
 		Usage:   "resynchronization period",
 		Value:   "30m",
 	},
+	&cli.BoolFlag{
+		Name:    enableTraefikFlag,
+		Usage:   "Enables the controller to replicate Traefik CRDs.",
+		EnvVars: []string{"ENABLE_TRAEFIK"},
+	},
 	&cli.StringFlag{
 		Name:    podNamespaceFlag,
 		Usage:   "Specifies the namespace that current application pod is running in.",
@@ -83,8 +89,9 @@ func startKubeSecretSync(ctx *cli.Context) (err error) {
 	return client.SyncExternals(&client.SyncConfig{
 		PodNamespace: ctx.String(podNamespaceFlag),
 
-		LivenessPort: ctx.Int(livenessPortFlag),
-		ResyncPeriod: resyncPeriod,
+		LivenessPort:  ctx.Int(livenessPortFlag),
+		ResyncPeriod:  resyncPeriod,
+		EnableTraefik: ctx.Bool(enableTraefikFlag),
 
 		OutOfCluster: ctx.Bool(outOfClusterFlag),
 		KubeConfig:   ctx.String(kubeconfigFlag),

@@ -3,7 +3,6 @@ package ingress
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/alehechka/kube-external-sync/client/replicate/common"
@@ -140,14 +139,14 @@ func prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []ne
 	if tld, ok := annotations[common.TopLevelDomain]; ok {
 		return []networkingv1.IngressTLS{{
 			SecretName: annotations[common.TLDSecretName],
-			Hosts:      []string{prepareTLD(namespace, tld)},
+			Hosts:      []string{common.PrepareTLD(namespace, tld)},
 		}}
 	}
 
 	for _, tls := range source.Spec.TLS {
 		entry := networkingv1.IngressTLS{SecretName: tls.SecretName}
 		for _, host := range tls.Hosts {
-			entry.Hosts = append(entry.Hosts, prepareTLD(namespace, host))
+			entry.Hosts = append(entry.Hosts, common.PrepareTLD(namespace, host))
 		}
 		ingressTLS = append(ingressTLS, entry)
 	}
@@ -157,12 +156,12 @@ func prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []ne
 
 func prepareRules(namespace string, source *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
 	tld, ok := source.GetAnnotations()[common.TopLevelDomain]
-	prepared := prepareTLD(namespace, tld)
+	prepared := common.PrepareTLD(namespace, tld)
 
 	for _, rule := range source.Spec.Rules {
 		host := prepared
 		if !ok {
-			host = prepareTLD(namespace, rule.Host)
+			host = common.PrepareTLD(namespace, rule.Host)
 		}
 
 		rules = append(rules, networkingv1.IngressRule{
@@ -172,11 +171,4 @@ func prepareRules(namespace string, source *networkingv1.Ingress) (rules []netwo
 	}
 
 	return
-}
-
-func prepareTLD(namespace, tld string) string {
-	subdomains := strings.Split(tld, ".")
-	subdomains[0] = namespace
-
-	return strings.Join(subdomains, ".")
 }
