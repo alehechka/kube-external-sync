@@ -21,11 +21,13 @@ type Handler struct {
 func (h *Handler) notReadyComponents() []string {
 	notReady := make([]string, 0)
 
-	for i := range h.Replicators {
-		synced := h.Replicators[i].Synced()
+	for _, replicator := range h.Replicators {
+		if replicator == nil {
+			continue
+		}
 
-		if !synced {
-			notReady = append(notReady, fmt.Sprintf("%T", h.Replicators[i]))
+		if synced := replicator.Synced(); !synced {
+			notReady = append(notReady, fmt.Sprintf("%T", replicator))
 		}
 	}
 
