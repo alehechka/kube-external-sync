@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alehechka/kube-external-sync/client/replicate/common"
+	"github.com/alehechka/kube-external-sync/client/replicate/traefik"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/generated/clientset/versioned"
@@ -145,7 +146,7 @@ func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1
 			Priority:    route.Priority,
 		}
 
-		newRoute.Match = common.PrepareRouteMatch(namespace, route.Match)
+		newRoute.Match = traefik.PrepareRouteMatch(namespace, route.Match)
 
 		routes = append(routes, newRoute)
 	}
