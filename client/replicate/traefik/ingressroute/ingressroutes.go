@@ -138,6 +138,9 @@ func prepareIngressRoute(namespace string, source *v1alpha1.IngressRoute) *v1alp
 }
 
 func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1alpha1.Route) {
+	annotations := source.GetAnnotations()
+	hostname := annotations[common.TopLevelDomain]
+
 	for _, route := range source.Spec.Routes {
 		newRoute := v1alpha1.Route{
 			Kind:        route.Kind,
@@ -146,7 +149,7 @@ func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1
 			Priority:    route.Priority,
 		}
 
-		newRoute.Match = traefik.PrepareRouteMatch(namespace, route.Match)
+		newRoute.Match = traefik.PrepareRouteMatch(namespace, route.Match, hostname)
 
 		routes = append(routes, newRoute)
 	}
