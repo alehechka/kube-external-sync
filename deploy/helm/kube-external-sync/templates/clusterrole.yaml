@@ -34,3 +34,16 @@ rules:
       - get
       - list
       - watch
+  {{- if .Values.traefik.enabled }}
+  - apiGroups:
+      - 'traefik.containo.us'
+    resources:
+      - ingressroutes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+  {{- end }}
