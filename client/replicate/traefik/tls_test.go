@@ -8,50 +8,62 @@ import (
 
 func Test_PrepareRouteMatch_NoHost(t *testing.T) {
 	match := "PathPrefix(`/`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, match, newMatch)
 }
 
 func Test_PrepareRouteMatch_OneHost(t *testing.T) {
 	match := "Host(`subdomain.example.com`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "Host(`default.example.com`)", newMatch)
+}
+
+func Test_PrepareRouteMatch_OneHost_WithFallback(t *testing.T) {
+	match := "Host(`subdomain.example.com`)"
+	newMatch := PrepareRouteMatch("default", match, "*.other.com")
+	assert.Equal(t, "Host(`default.other.com`)", newMatch)
 }
 
 func Test_PrepareRouteMatch_TwoHosts(t *testing.T) {
 	match := "Host(`subdomain.example.com`) || Host(`subdomain.placeholder.com`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "Host(`default.example.com`) || Host(`default.placeholder.com`)", newMatch)
 }
 
 func Test_PrepareRouteMatch_HostPathPrefix(t *testing.T) {
 	match := "Host(`subdomain.example.com`) && PathPrefix(`/`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "Host(`default.example.com`) && PathPrefix(`/`)", newMatch)
 }
 
 func Test_PrepareRouteMatch_HostPathPrefixHost(t *testing.T) {
 	match := "(Host(`subdomain.example.com`) && PathPrefix(`/`)) || Host(`subdomain.placeholder.com`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "(Host(`default.example.com`) && PathPrefix(`/`)) || Host(`default.placeholder.com`)", newMatch)
 }
 
 func Test_PrepareRouteMatch_MultiHosts(t *testing.T) {
 	match := "Host(`subdomain.example.com`, `other.example.com`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "Host(`default.example.com`, `default.example.com`)", newMatch)
 }
 
 func Test_PrepareRouteMatch_Complex(t *testing.T) {
 	match := "(Host(`subdomain.example.com`, `other.example.com`) && PathPrefix(`/`)) || Host(`subdomain.placeholder.com`, `other.placeholder.com`)"
-	newMatch := PrepareRouteMatch("default", match)
+	newMatch := PrepareRouteMatch("default", match, "")
 	assert.Equal(t, "(Host(`default.example.com`, `default.example.com`) && PathPrefix(`/`)) || Host(`default.placeholder.com`, `default.placeholder.com`)", newMatch)
 }
 
 func Test_prepareDomainStrings(t *testing.T) {
-	assert.Equal(t, "(`default.example.com`", prepareDomainStrings("default", "(`subdomain.example.com`"))
-	assert.Equal(t, "`default.example.com`", prepareDomainStrings("default", "`subdomain.example.com`"))
-	assert.Equal(t, "`default.example.com`, `default.placeholder.com`", prepareDomainStrings("default", "`subdomain.example.com`, `subdomain.placeholder.com`"))
+	assert.Equal(t, "(`default.example.com`", prepareDomainStrings("default", "(`subdomain.example.com`", ""))
+	assert.Equal(t, "`default.example.com`", prepareDomainStrings("default", "`subdomain.example.com`", ""))
+	assert.Equal(t, "`default.example.com`, `default.placeholder.com`", prepareDomainStrings("default", "`subdomain.example.com`, `subdomain.placeholder.com`", ""))
+}
+
+func Test_prepareDomainStrings_WithFallback(t *testing.T) {
+	assert.Equal(t, "(`default.other.com`", prepareDomainStrings("default", "(`subdomain.example.com`", "*.other.com"))
+	assert.Equal(t, "`default.other.com`", prepareDomainStrings("default", "`subdomain.example.com`", "*.other.com"))
+	assert.Equal(t, "`default.other.com`, `default.other.com`", prepareDomainStrings("default", "`subdomain.example.com`, `subdomain.placeholder.com`", "*.other.com"))
 }
 
 func Test_uncutSplit(t *testing.T) {
