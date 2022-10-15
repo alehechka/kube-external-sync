@@ -7,7 +7,7 @@ import (
 )
 
 // PrepareRouteMatch replaces all domains with the namespaced version
-func PrepareRouteMatch(namespace, match string) string {
+func PrepareRouteMatch(namespace, match string, hostname string) string {
 	if !strings.Contains(match, "Host") {
 		return match
 	}
@@ -17,7 +17,7 @@ func PrepareRouteMatch(namespace, match string) string {
 	isHost := false
 	for index, part := range parenParts {
 		if isHost {
-			parenParts[index] = prepareDomainStrings(namespace, part)
+			parenParts[index] = prepareDomainStrings(namespace, part, hostname)
 			isHost = false
 			continue
 		}
@@ -29,13 +29,18 @@ func PrepareRouteMatch(namespace, match string) string {
 	return strings.Join(parenParts, "")
 }
 
-func prepareDomainStrings(namespace, domainString string) string {
+func prepareDomainStrings(namespace, domainString, hostname string) string {
 	parts := strings.Split(domainString, "`")
 
 	isHost := false
 	for index, part := range parts {
 		if isHost {
-			parts[index] = common.PrepareTLD(namespace, part)
+			if len(hostname) > 0 {
+				parts[index] = common.PrepareTLD(namespace, hostname)
+			} else {
+				parts[index] = common.PrepareTLD(namespace, part)
+			}
+
 			isHost = false
 			continue
 		}
