@@ -54,6 +54,12 @@ func Test_PrepareRouteMatch_Complex(t *testing.T) {
 	assert.Equal(t, "(Host(`default.example.com`, `default.example.com`) && PathPrefix(`/`)) || Host(`default.placeholder.com`, `default.placeholder.com`)", newMatch)
 }
 
+func Test_PrepareRouteMatch_NewLineSuffix(t *testing.T) {
+	match := "Host(`example.com`) && Path(`/path1`,`/path2`,`/path3`)\n"
+	newMatch := PrepareRouteMatch("default", match, "*.example.com")
+	assert.Equal(t, "Host(`default.example.com`) && Path(`/path1`,`/path2`,`/path3`)", newMatch)
+}
+
 func Test_prepareDomainStrings(t *testing.T) {
 	assert.Equal(t, "(`default.example.com`", prepareDomainStrings("default", "(`subdomain.example.com`", ""))
 	assert.Equal(t, "`default.example.com`", prepareDomainStrings("default", "`subdomain.example.com`", ""))

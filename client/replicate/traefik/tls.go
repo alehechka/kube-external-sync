@@ -57,6 +57,9 @@ func uncutSplit(str string, delimiter func(rune) bool) (strs []string) {
 		return make([]string, 0)
 	}
 
+	// Helm chart's can produce edge case where string ends with newline and messes with the rest of this algorithm. Simply trimming it here fixes it.
+	str = strings.TrimSuffix(str, "\n")
+
 	var prev int
 	for index, char := range str {
 		if delimiter(char) {
