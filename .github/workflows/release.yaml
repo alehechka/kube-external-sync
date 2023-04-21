@@ -31,9 +31,9 @@ jobs:
         id: image
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "::set-output name=tag::${{ github.ref_name }}"
+            echo "tag=${{ github.ref_name }}"  >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=tag::latest"
+            echo "name=tag=latest"  >> $GITHUB_OUTPUT
           fi
 
       - uses: docker/build-push-action@v3
@@ -58,15 +58,13 @@ jobs:
 
       - name: Setup Helm
         uses: azure/setup-helm@v3
-        with:
-          version: 'v3.9.4'
 
       - name: Get Chart version
         id: chart
         run: |
           VERSION=${{ github.ref_name }}
 
-          echo "::set-output name=version::${VERSION##*v}"
+          echo "version=${VERSION##*v}"  >> $GITHUB_OUTPUT
 
       - name: Update versions
         run: |

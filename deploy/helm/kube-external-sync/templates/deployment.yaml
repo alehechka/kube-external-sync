@@ -28,9 +28,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: LOG_LEVEL
-              value: {{ .Values.deployment.env.LOG_LEVEL }}
+              value: {{ .Values.deployment.config.LOG_LEVEL }}
             - name: LOG_FORMAT
-              value: {{ .Values.deployment.env.LOG_FORMAT }}
+              value: {{ .Values.deployment.config.LOG_FORMAT }}
             - name: LIVENESS_PORT
               value: {{ .Values.deployment.port | quote }}
             - name: RESYNC_PERIOD

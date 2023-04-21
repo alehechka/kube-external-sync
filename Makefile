@@ -5,6 +5,3 @@ start:
 		--enable-traefik \
 		--pod-namespace kube-external-sync \
 		--default-ingress-hostname "*.example.com"
-
-generate:
-	controller-gen object paths=./...
