@@ -22,13 +22,14 @@ import (
 
 // ReplicatorConfig represents configuration for individual resource controllers
 type ReplicatorConfig struct {
-	Kind          string
-	Client        kubernetes.Interface
-	TraefikClient *versioned.Clientset
-	ResyncPeriod  time.Duration
-	ListFunc      cache.ListFunc
-	WatchFunc     cache.WatchFunc
-	ObjType       runtime.Object
+	Kind                   string
+	Client                 kubernetes.Interface
+	TraefikClient          *versioned.Clientset
+	ResyncPeriod           time.Duration
+	DefaultIngressHostname string
+	ListFunc               cache.ListFunc
+	WatchFunc              cache.WatchFunc
+	ObjType                runtime.Object
 }
 
 // UpdateFuncs stores the resource updater functions
@@ -541,4 +542,9 @@ func (r *GenericReplicator) getFilteredNamespaces(current string, patterns strin
 		}
 	}
 	return filtered
+}
+
+// HasDefaultIngressHostname returns a boolean value determining whether or not a default Ingress hostname was provided.
+func (r *GenericReplicator) HasDefaultIngressHostname() bool {
+	return len(r.ReplicatorConfig.DefaultIngressHostname) > 0
 }

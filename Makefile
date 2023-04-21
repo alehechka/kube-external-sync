@@ -3,7 +3,8 @@ start:
 		--local --log-level debug \
 		--liveness-port 9090 \
 		--enable-traefik \
-		--pod-namespace kube-external-sync
+		--pod-namespace kube-external-sync \
+		--default-ingress-hostname "*.example.com"
 
 generate:
 	controller-gen object paths=./...

@@ -24,15 +24,16 @@ type Replicator struct {
 }
 
 // NewReplicator creates a new ingress replicator
-func NewReplicator(ctx context.Context, client kubernetes.Interface, traefik *versioned.Clientset, resyncPeriod time.Duration) common.Replicator {
+func NewReplicator(ctx context.Context, client kubernetes.Interface, traefik *versioned.Clientset, resyncPeriod time.Duration, defaultIngressHostname string) common.Replicator {
 
 	repl := Replicator{
 		GenericReplicator: common.NewGenericReplicator(ctx, common.ReplicatorConfig{
-			Kind:          "IngressRoute",
-			ObjType:       &v1alpha1.IngressRoute{},
-			ResyncPeriod:  resyncPeriod,
-			Client:        client,
-			TraefikClient: traefik,
+			Kind:                   "IngressRoute",
+			ObjType:                &v1alpha1.IngressRoute{},
+			ResyncPeriod:           resyncPeriod,
+			DefaultIngressHostname: defaultIngressHostname,
+			Client:                 client,
+			TraefikClient:          traefik,
 			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
 				return traefik.TraefikV1alpha1().IngressRoutes(v1.NamespaceAll).List(ctx, lo)
 			},
@@ -73,7 +74,7 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 		return nil
 	}
 
-	prepared := prepareIngressRoute(target.Namespace, source)
+	prepared := r.prepareIngressRoute(target.Namespace, source)
 	service, err := r.TraefikClient.TraefikV1alpha1().IngressRoutes(target.Namespace).Update(r.Context, prepared, metav1.UpdateOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Failed updating target %s", common.MustGetKey(prepared))
@@ -97,7 +98,7 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 		return r.ReplicateDataFrom(source, targetResource)
 	}
 
-	prepared := prepareIngressRoute(targetNamespace.Name, source)
+	prepared := r.prepareIngressRoute(targetNamespace.Name, source)
 	service, err := r.TraefikClient.TraefikV1alpha1().IngressRoutes(targetNamespace.Name).Create(r.Context, prepared, metav1.CreateOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Failed creating target %s", common.MustGetKey(prepared))
@@ -120,7 +121,7 @@ func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error 
 	return r.TraefikClient.TraefikV1alpha1().IngressRoutes(ingressRoute.Namespace).Delete(r.Context, ingressRoute.Name, metav1.DeleteOptions{})
 }
 
-func prepareIngressRoute(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.IngressRoute {
+func (r *Replicator) prepareIngressRoute(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.IngressRoute {
 	return &v1alpha1.IngressRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            source.Name,
@@ -131,15 +132,18 @@ func prepareIngressRoute(namespace string, source *v1alpha1.IngressRoute) *v1alp
 		},
 		Spec: v1alpha1.IngressRouteSpec{
 			EntryPoints: source.Spec.EntryPoints,
-			Routes:      prepareRoutes(namespace, source),
-			TLS:         prepareTLS(namespace, source),
+			Routes:      r.prepareRoutes(namespace, source),
+			TLS:         r.prepareTLS(namespace, source),
 		},
 	}
 }
 
-func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1alpha1.Route) {
+func (r *Replicator) prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1alpha1.Route) {
 	annotations := source.GetAnnotations()
-	hostname := annotations[common.TopLevelDomain]
+	hostname, ok := annotations[common.TopLevelDomain]
+	if !ok && r.HasDefaultIngressHostname() {
+		hostname = r.DefaultIngressHostname
+	}
 
 	for _, route := range source.Spec.Routes {
 		newRoute := v1alpha1.Route{
@@ -157,7 +161,7 @@ func prepareRoutes(namespace string, source *v1alpha1.IngressRoute) (routes []v1
 	return
 }
 
-func prepareTLS(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.TLS {
+func (r *Replicator) prepareTLS(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.TLS {
 	annotations := source.GetAnnotations()
 
 	if tld, ok := annotations[common.TopLevelDomain]; ok {
@@ -168,6 +172,18 @@ func prepareTLS(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.TLS {
 			CertResolver: source.Spec.TLS.CertResolver,
 			Domains: []types.Domain{{
 				Main: common.PrepareTLD(namespace, tld),
+			}},
+		}
+	}
+
+	if r.HasDefaultIngressHostname() {
+		return &v1alpha1.TLS{
+			SecretName:   annotations[common.TLDSecretName],
+			Options:      source.Spec.TLS.Options,
+			Store:        source.Spec.TLS.Store,
+			CertResolver: source.Spec.TLS.CertResolver,
+			Domains: []types.Domain{{
+				Main: common.PrepareTLD(namespace, r.DefaultIngressHostname),
 			}},
 		}
 	}
