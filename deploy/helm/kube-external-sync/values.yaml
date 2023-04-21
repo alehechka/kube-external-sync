@@ -4,15 +4,19 @@
 
 replicaCount: 1
 
+config:
+  # Resynchronization period for the kubelet watcher
+  resyncPeriod: '30m'
+  ingress:
+    # Default hostname to use when syncing an Ingress or IngressRoute resource and proper annotation is not provided.
+    # If this value is left blank, then the hostname will be extracted from the resource being synced.
+    defaultHostname: ''
+
 image:
   repository: ghcr.io/alehechka/kube-external-sync
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: 'latest'
-
-imagePullSecrets: []
-nameOverride: 'kube-external-sync'
-fullnameOverride: 'kube-external-sync'
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -23,19 +27,16 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: ''
   automountServiceAccountToken: true
-
 deployment:
   # Annotations to add to the service account
   annotations: {}
   # port for liveness probe
   port: 80
-  env:
+  config:
     # Log level (trace, debug, info, warn, error)
     LOG_LEVEL: 'info'
     # Log format (plain, json)
     LOG_FORMAT: 'plain'
-    # resynchronization period
-    RESYNC_PERIOD: '30m'
 
 traefik:
   enabled: false

@@ -34,7 +34,9 @@ spec:
             - name: LIVENESS_PORT
               value: {{ .Values.deployment.port | quote }}
             - name: RESYNC_PERIOD
-              value: {{ .Values.deployment.env.RESYNC_PERIOD }}
+              value: {{ .Values.config.resyncPeriod }}
+            - name: DEFAULT_INGRESS_HOSTNAME
+              value: {{ .Values.config.ingress.defaultHostname }}
             - name: ENABLE_TRAEFIK
               value: {{ .Values.traefik.enabled | quote }}
           ports:
