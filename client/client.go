@@ -14,13 +14,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// SyncConfig contains the configuration options for the SyncSecrets operation.
+// SyncConfig contains the configuration options for the SyncExternals operation.
 type SyncConfig struct {
 	PodNamespace string
 
-	LivenessPort  int
-	ResyncPeriod  time.Duration
-	EnableTraefik bool
+	LivenessPort           int
+	ResyncPeriod           time.Duration
+	DefaultIngressHostname string
+	EnableTraefik          bool
 
 	OutOfCluster bool
 	KubeConfig   string
@@ -98,9 +99,9 @@ func (c *Controller) InitializeClusterConfig() (err error) {
 
 func (c *Controller) InitializeReplicators() {
 	c.ServiceReplicator = service.NewReplicator(c.Context, c.DefaultClient, c.SyncConfig.ResyncPeriod)
-	c.IngressReplicator = ingress.NewReplicator(c.Context, c.DefaultClient, c.SyncConfig.ResyncPeriod)
+	c.IngressReplicator = ingress.NewReplicator(c.Context, c.DefaultClient, c.SyncConfig.ResyncPeriod, c.SyncConfig.DefaultIngressHostname)
 
 	if c.SyncConfig.EnableTraefik {
-		c.TraefikIngressRouteReplicator = ingressroute.NewReplicator(c.Context, c.DefaultClient, c.TraefikClient, c.SyncConfig.ResyncPeriod)
+		c.TraefikIngressRouteReplicator = ingressroute.NewReplicator(c.Context, c.DefaultClient, c.TraefikClient, c.SyncConfig.ResyncPeriod, c.SyncConfig.DefaultIngressHostname)
 	}
 }

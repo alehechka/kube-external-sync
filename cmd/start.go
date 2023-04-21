@@ -13,14 +13,15 @@ import (
 )
 
 const (
-	logLevelFlag      = "log-level"
-	logFormatFlag     = "log-format"
-	outOfClusterFlag  = "out-of-cluster"
-	kubeconfigFlag    = "kubeconfig"
-	podNamespaceFlag  = "pod-namespace"
-	livenessPortFlag  = "liveness-port"
-	resyncPeriodFlag  = "resync-period"
-	enableTraefikFlag = "enable-traefik"
+	logLevelFlag               = "log-level"
+	logFormatFlag              = "log-format"
+	outOfClusterFlag           = "out-of-cluster"
+	kubeconfigFlag             = "kubeconfig"
+	podNamespaceFlag           = "pod-namespace"
+	livenessPortFlag           = "liveness-port"
+	resyncPeriodFlag           = "resync-period"
+	defaultIngressHostnameFlag = "default-ingress-hostname"
+	enableTraefikFlag          = "enable-traefik"
 )
 
 func kubeconfig() *cli.StringFlag {
@@ -58,7 +59,13 @@ var startFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:    resyncPeriodFlag,
 		EnvVars: []string{"RESYNC_PERIOD"},
-		Usage:   "resynchronization period",
+		Usage:   "Resynchronization period for the kubelet watcher",
+		Value:   "30m",
+	},
+	&cli.StringFlag{
+		Name:    defaultIngressHostnameFlag,
+		EnvVars: []string{"DEFAULT_INGRESS_HOSTNAME"},
+		Usage:   "Default hostname to use when syncing an Ingress or IngressRoute resource and proper annotation is not provided. If this value is left blank, then the hostname will be extracted from the resource being synced.",
 		Value:   "30m",
 	},
 	&cli.BoolFlag{
@@ -89,9 +96,10 @@ func startKubeSecretSync(ctx *cli.Context) (err error) {
 	return client.SyncExternals(&client.SyncConfig{
 		PodNamespace: ctx.String(podNamespaceFlag),
 
-		LivenessPort:  ctx.Int(livenessPortFlag),
-		ResyncPeriod:  resyncPeriod,
-		EnableTraefik: ctx.Bool(enableTraefikFlag),
+		LivenessPort:           ctx.Int(livenessPortFlag),
+		ResyncPeriod:           resyncPeriod,
+		DefaultIngressHostname: ctx.String(defaultIngressHostnameFlag),
+		EnableTraefik:          ctx.Bool(enableTraefikFlag),
 
 		OutOfCluster: ctx.Bool(outOfClusterFlag),
 		KubeConfig:   ctx.String(kubeconfigFlag),

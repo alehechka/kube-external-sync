@@ -81,6 +81,26 @@ jobs:
         run: helm package deploy/helm/kube-external-sync
 
       - name: Add to release
-        run: gh release upload ${{ github.ref_name }} kube-external-sync.yaml kube-external-sync-${{ steps.chart.outputs.version }}.tgz
+        run: gh release upload ${{ github.ref_name }} kube-external-sync.yaml kube-external-sync-${{ steps.chart.outputs.version }}.tgz --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add deployment instructions to release
+        uses: lockerstock/github-actions/add-release-notes@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: 'Deployment Instructions'
+          body: |
+            ## Deployment Instructions
+
+            ### Using Helm
+
+            ```shell
+            helm upgrade  --install kube-external-sync ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/kube-external-sync-${{ steps.chart.outputs.version }}.tgz
+            ```
+
+            ### Using kubectl
+
+            ```shell
+            kubectl apply -f ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/kube-external-sync.yaml
+            ```

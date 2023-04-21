@@ -21,13 +21,14 @@ type Replicator struct {
 }
 
 // NewReplicator creates a new ingress replicator
-func NewReplicator(ctx context.Context, client kubernetes.Interface, resyncPeriod time.Duration) common.Replicator {
+func NewReplicator(ctx context.Context, client kubernetes.Interface, resyncPeriod time.Duration, defaultIngressHostname string) common.Replicator {
 	repl := Replicator{
 		GenericReplicator: common.NewGenericReplicator(ctx, common.ReplicatorConfig{
-			Kind:         "Ingress",
-			ObjType:      &networkingv1.Ingress{},
-			ResyncPeriod: resyncPeriod,
-			Client:       client,
+			Kind:                   "Ingress",
+			ObjType:                &networkingv1.Ingress{},
+			ResyncPeriod:           resyncPeriod,
+			DefaultIngressHostname: defaultIngressHostname,
+			Client:                 client,
 			ListFunc: func(lo metav1.ListOptions) (runtime.Object, error) {
 				return client.NetworkingV1().Ingresses(v1.NamespaceAll).List(ctx, lo)
 			},
@@ -68,7 +69,7 @@ func (r *Replicator) ReplicateDataFrom(sourceObj interface{}, targetObj interfac
 		return nil
 	}
 
-	prepared := prepareIngress(target.Namespace, source)
+	prepared := r.prepareIngress(target.Namespace, source)
 	service, err := r.Client.NetworkingV1().Ingresses(target.Namespace).Update(r.Context, prepared, metav1.UpdateOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Failed updating target %s", common.MustGetKey(prepared))
@@ -92,7 +93,7 @@ func (r *Replicator) ReplicateObjectTo(sourceObj interface{}, targetNamespace *v
 		return r.ReplicateDataFrom(source, targetResource)
 	}
 
-	prepared := prepareIngress(targetNamespace.Name, source)
+	prepared := r.prepareIngress(targetNamespace.Name, source)
 	service, err := r.Client.NetworkingV1().Ingresses(targetNamespace.Name).Create(r.Context, prepared, metav1.CreateOptions{})
 	if err != nil {
 		err = errors.Wrapf(err, "Failed creating target %s", common.MustGetKey(prepared))
@@ -115,7 +116,7 @@ func (r *Replicator) DeleteReplicatedResource(targetResource interface{}) error 
 	return r.Client.NetworkingV1().Ingresses(ingress.Namespace).Delete(r.Context, ingress.Name, metav1.DeleteOptions{})
 }
 
-func prepareIngress(namespace string, source *networkingv1.Ingress) *networkingv1.Ingress {
+func (r *Replicator) prepareIngress(namespace string, source *networkingv1.Ingress) *networkingv1.Ingress {
 	return &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            source.Name,
@@ -127,19 +128,26 @@ func prepareIngress(namespace string, source *networkingv1.Ingress) *networkingv
 		Spec: networkingv1.IngressSpec{
 			IngressClassName: source.Spec.IngressClassName,
 			DefaultBackend:   source.Spec.DefaultBackend,
-			TLS:              prepareTLS(namespace, source),
-			Rules:            prepareRules(namespace, source),
+			TLS:              r.prepareTLS(namespace, source),
+			Rules:            r.prepareRules(namespace, source),
 		},
 	}
 }
 
-func prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []networkingv1.IngressTLS) {
+func (r *Replicator) prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []networkingv1.IngressTLS) {
 	annotations := source.GetAnnotations()
 
 	if tld, ok := annotations[common.TopLevelDomain]; ok {
 		return []networkingv1.IngressTLS{{
 			SecretName: annotations[common.TLDSecretName],
 			Hosts:      []string{common.PrepareTLD(namespace, tld)},
+		}}
+	}
+
+	if r.HasDefaultIngressHostname() {
+		return []networkingv1.IngressTLS{{
+			SecretName: annotations[common.TLDSecretName],
+			Hosts:      []string{common.PrepareTLD(namespace, r.DefaultIngressHostname)},
 		}}
 	}
 
@@ -154,14 +162,19 @@ func prepareTLS(namespace string, source *networkingv1.Ingress) (ingressTLS []ne
 	return
 }
 
-func prepareRules(namespace string, source *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
+func (r *Replicator) prepareRules(namespace string, source *networkingv1.Ingress) (rules []networkingv1.IngressRule) {
 	tld, ok := source.GetAnnotations()[common.TopLevelDomain]
 	prepared := common.PrepareTLD(namespace, tld)
 
 	for _, rule := range source.Spec.Rules {
 		host := prepared
+		// If TLD annotation is not provided
 		if !ok {
-			host = common.PrepareTLD(namespace, rule.Host)
+			if r.HasDefaultIngressHostname() {
+				host = common.PrepareTLD(namespace, r.DefaultIngressHostname)
+			} else {
+				host = common.PrepareTLD(namespace, rule.Host)
+			}
 		}
 
 		rules = append(rules, networkingv1.IngressRule{
