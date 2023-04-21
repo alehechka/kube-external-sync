@@ -36,7 +36,7 @@ spec:
             - name: RESYNC_PERIOD
               value: {{ .Values.config.resyncPeriod }}
             - name: DEFAULT_INGRESS_HOSTNAME
-              value: {{ .Values.config.ingress.defaultHostname }}
+              value: {{ .Values.config.ingress.defaultHostname | quote }}
             - name: ENABLE_TRAEFIK
               value: {{ .Values.traefik.enabled | quote }}
           ports:
