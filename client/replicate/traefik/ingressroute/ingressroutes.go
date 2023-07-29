@@ -162,39 +162,37 @@ func (r *Replicator) prepareRoutes(namespace string, source *v1alpha1.IngressRou
 }
 
 func (r *Replicator) prepareTLS(namespace string, source *v1alpha1.IngressRoute) *v1alpha1.TLS {
+	if source.Spec.TLS == nil {
+		return nil
+	}
+
 	annotations := source.GetAnnotations()
 
-	if tld, ok := annotations[common.TopLevelDomain]; ok {
-		return &v1alpha1.TLS{
-			SecretName:   annotations[common.TLDSecretName],
-			Options:      source.Spec.TLS.Options,
-			Store:        source.Spec.TLS.Store,
-			CertResolver: source.Spec.TLS.CertResolver,
-			Domains: []types.Domain{{
-				Main: common.PrepareTLD(namespace, tld),
-			}},
-		}
-	}
-
-	if r.HasDefaultIngressHostname() {
-		return &v1alpha1.TLS{
-			SecretName:   annotations[common.TLDSecretName],
-			Options:      source.Spec.TLS.Options,
-			Store:        source.Spec.TLS.Store,
-			CertResolver: source.Spec.TLS.CertResolver,
-			Domains: []types.Domain{{
-				Main: common.PrepareTLD(namespace, r.DefaultIngressHostname),
-			}},
-		}
-	}
-
-	return &v1alpha1.TLS{
-		SecretName:   source.Spec.TLS.SecretName,
+	tls := &v1alpha1.TLS{
+		SecretName:   annotations[common.TLDSecretName],
 		Options:      source.Spec.TLS.Options,
 		Store:        source.Spec.TLS.Store,
 		CertResolver: source.Spec.TLS.CertResolver,
-		Domains:      prepareDomains(namespace, source),
 	}
+
+	if tld, ok := annotations[common.TopLevelDomain]; ok {
+		tls.Domains = []types.Domain{{
+			Main: common.PrepareTLD(namespace, tld),
+		}}
+
+		return tls
+	}
+
+	if r.HasDefaultIngressHostname() {
+		tls.Domains = []types.Domain{{
+			Main: common.PrepareTLD(namespace, r.DefaultIngressHostname),
+		}}
+
+		return tls
+	}
+
+	tls.Domains = prepareDomains(namespace, source)
+	return tls
 }
 
 func prepareDomains(namespace string, source *v1alpha1.IngressRoute) (domains []types.Domain) {
